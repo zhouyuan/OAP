@@ -75,7 +75,7 @@ public class AdaptorReferenceManager implements ReferenceManager {
   }
 
   @Override
-  public ArrowBuf deriveBuffer(ArrowBuf sourceBuffer, int index, int length) {
+  public ArrowBuf deriveBuffer(ArrowBuf sourceBuffer, long index, long length) {
     final long derivedBufferAddress = sourceBuffer.memoryAddress() + index;
 
     // create new ArrowBuf
@@ -96,12 +96,12 @@ public class AdaptorReferenceManager implements ReferenceManager {
   }
 
   @Override
-  public int getSize() {
+  public long getSize() {
     return size;
   }
 
   @Override
-  public int getAccountedSize() {
+  public long getAccountedSize() {
     return 0;
   }
 }

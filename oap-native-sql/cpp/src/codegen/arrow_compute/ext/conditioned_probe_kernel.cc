@@ -23,6 +23,11 @@
 #include <iostream>
 #include <memory>
 #include <unordered_map>
+
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <unistd.h>
+
 #include "codegen/arrow_compute/ext/codegen_node_visitor_v2.h"
 #include "codegen/arrow_compute/ext/conditioner.h"
 #include "codegen/arrow_compute/ext/item_iterator.h"
@@ -161,10 +166,11 @@ class ConditionedProbeArraysTypedImpl : public ConditionedProbeArraysKernel::Imp
     };
 
     cur_id_ = 0;
+    int memo_index = 0;
     if (typed_array->null_count() == 0) {
       for (; cur_id_ < typed_array->length(); cur_id_++) {
         hash_table_->GetOrInsert(typed_array->GetView(cur_id_), insert_on_found,
-                                 insert_on_not_found);
+                                 insert_on_not_found, &memo_index);
       }
     } else {
       for (; cur_id_ < typed_array->length(); cur_id_++) {
@@ -172,7 +178,7 @@ class ConditionedProbeArraysTypedImpl : public ConditionedProbeArraysKernel::Imp
           hash_table_->GetOrInsertNull(insert_on_found, insert_on_not_found);
         } else {
           hash_table_->GetOrInsert(typed_array->GetView(cur_id_), insert_on_found,
-                                   insert_on_not_found);
+                                   insert_on_not_found, &memo_index);
         }
       }
     }
@@ -547,17 +553,25 @@ extern "C" void MakeConditioner(std::shared_ptr<ConditionerBase> *out) {
 
     // compile the code
     std::string cmd = "gcc -Wall -Wextra " + cppfile + " -o " + tmplibfile +
-                      " -O3 -shared -fPIC -lspark_columnar_jni &> " + logfile;
+                      " -O3 -shared -fPIC -lspark_columnar_jni > " + logfile;
     int ret = system(cmd.c_str());
     if (WEXITSTATUS(ret) != EXIT_SUCCESS) {
       std::cout << "compilation failed, see " << logfile << std::endl;
       exit(EXIT_FAILURE);
     }
 
-    cmd = "mv -n " + tmplibfile + " " + libfile;
-    ret = system(cmd.c_str());
-    cmd = "rm -rf " + tmplibfile;
-    ret = system(cmd.c_str());
+    struct stat tstat;
+    ret = stat(tmplibfile.c_str(), &tstat);
+    if (ret == -1) {
+      std::cout << "stat failed: " << strerror(errno) << std::endl;
+      exit(EXIT_FAILURE);
+    }
+
+    ret = rename(tmplibfile.c_str(), libfile.c_str());
+    if (ret == -1) {
+      std::cout << "rename failed: " << strerror(errno) << std::endl;
+      exit(EXIT_FAILURE);
+    }
 
     return arrow::Status::OK();
   }
