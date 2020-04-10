@@ -17,6 +17,7 @@
 
   <properties>
     <arrow.version>1.0.0-SNAPSHOT</arrow.version>
+    <native.cpp.build.dir>../cpp/build/releases</native.cpp.build.dir>
   </properties>
   <dependencies>
     <!-- Prevent our dummy JAR from being included in Spark distributions or uploaded to YARN -->
@@ -94,6 +95,14 @@
   </dependencies>
 
   <build>
+    <resources>
+        <resource>
+            <directory>${native.cpp.build.dir}</directory>
+            <includes>
+                <include>**/libspark_columnar_jni*</include>
+            </includes>
+        </resource>
+    </resources>
     <outputDirectory>target/scala-${scala.binary.version}/classes</outputDirectory>
     <testOutputDirectory>target/scala-${scala.binary.version}/test-classes</testOutputDirectory>
     <plugins>
