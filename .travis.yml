@@ -26,5 +26,37 @@ jobs:
       - cd ${TRAVIS_BUILD_DIR}/oap-cache/oap/
       - mvn clean -q -Ppersistent-memory test
       
-      
-      
+    - name: oap-native-sql
+      dist: bionic
+      jdk:
+        - openjdk8
+      before_install:
+      echo $TRAVIS_COMMIT_MESSAGE
+      #- if [[ $TRAVIS_COMMIT_MESSAGE != \[nativesql\]* ]]; then travis_terminate 0 ; fi ;
+      - sudo apt-get install cmake
+      - export | grep JAVA_HOME
+      install:
+      - # Download spark 2.4.4
+      - "[ -f spark ] || mkdir spark && cd spark && wget http://archive.apache.org/dist/spark/spark-2.4.4/spark-2.4.4-bin-hadoop2.7.tgz && cd .."
+      - "tar -xf ./spark/spark-2.4.4-bin-hadoop2.7.tgz"
+      - "export SPARK_HOME=`pwd`/spark-2.4.4-bin-hadoop2.7"
+      before_script:
+      - cd /tmp
+      - git clone https://github.com/zhouyuan/arrow.git
+      - cd arrow && git checkout native-sql-engine-tmp && cd cpp
+      - mkdir build && cd build 
+      - cmake .. -DARROW_JNI=ON -DARROW_GANDIVA_JAVA=ON -DARROW_GANDIVA=ON -DARROW_PARQUET=ON -DARROW_HDFS=ON && make --ignore-errors
+      - sudo cp release/libgandiva_protobuf.* /usr/local/lib/ && sudo ldconfig
+      - sudo make install
+      - cd ../../java
+      - mvn clean install -q -P arrow-jni -am -Darrow.cpp.build.dir=/tmp/arrow/cpp/build/release/ -DskipTests -Dcheckstyle.skip
+      - cd /tmp
+      #- git clone https://github.com/intel-bigdata/spark.git
+      #- cd spark && git checkout native-sql-engine-tmp
+      #- ./build/mvn -q -Pyarn -Phadoop-3.2 -Dhadoop.version=3.2.0 -DskipTests clean install
+      - cd ${TRAVIS_BUILD_DIR}
+      script:
+      - cd ${TRAVIS_BUILD_DIR}/oap-native-sql/
+      - cd cpp && mkdir build && cd build
+      - cmake .. && make
+      #- mvn clean -q test
