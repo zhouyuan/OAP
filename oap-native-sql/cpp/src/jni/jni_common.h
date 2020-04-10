@@ -113,11 +113,7 @@ arrow::Status MakeSchema(JNIEnv* env, jbyteArray schema_arr,
       std::make_shared<arrow::Buffer>((uint8_t*)schema_bytes, schema_len);
   arrow::ipc::DictionaryMemo in_memo;
   arrow::io::BufferReader buf_reader(serialized_schema);
-  auto status = arrow::ipc::ReadSchema(&buf_reader, &in_memo, schema);
-  if (!status.ok()) {
-    env->ReleaseByteArrayElements(schema_arr, schema_bytes, JNI_ABORT);
-    return status;
-  }
+  *schema = arrow::ipc::ReadSchema(&buf_reader, &in_memo).ValueOrDie();
 
   return arrow::Status::OK();
 }
