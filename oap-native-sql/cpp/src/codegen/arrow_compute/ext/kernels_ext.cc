@@ -7,8 +7,6 @@
 #include <arrow/compute/kernels/count.h>
 #include <arrow/compute/kernels/hash.h>
 #include <arrow/compute/kernels/minmax.h>
-#include <arrow/compute/kernels/ntake.h>
-#include <arrow/compute/kernels/probe.h>
 #include <arrow/compute/kernels/sort_arrays_to_indices.h>
 #include <arrow/compute/kernels/sum.h>
 #include <arrow/pretty_print.h>
