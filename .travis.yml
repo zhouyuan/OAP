@@ -59,4 +59,5 @@ jobs:
       - cd ${TRAVIS_BUILD_DIR}/oap-native-sql/
       - cd cpp && mkdir build && cd build
       - cmake .. && make
+      - make install
       #- mvn clean -q test
