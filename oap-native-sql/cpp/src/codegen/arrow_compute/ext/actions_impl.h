@@ -1063,6 +1063,12 @@ arrow::Status MakeUniqueAction(arrow::compute::FunctionContext* ctx,
           std::make_shared<UniqueAction<arrow::StringType, std::string>>(ctx);
       *out = std::dynamic_pointer_cast<ActionBase>(action_ptr);
     } break;
+    case arrow::Date32Type::type_id: {
+      auto action_ptr =
+          std::make_shared<UniqueAction<arrow::Date32Type, int32_t>>(ctx);
+      *out = std::dynamic_pointer_cast<ActionBase>(action_ptr);
+    } break;
+
     default: {
       std::cout << "Not Found " << type->ToString() << ", type id is " << type->id()
                 << std::endl;
