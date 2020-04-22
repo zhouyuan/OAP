@@ -1,5 +1,6 @@
 package com.intel.sparkColumnarPlugin.expression
 
+import com.google.common.collect.Lists
 import org.apache.arrow.gandiva.evaluator._
 import org.apache.arrow.gandiva.exceptions.GandivaException
 import org.apache.arrow.gandiva.expression._
@@ -32,9 +33,9 @@ class ColumnarLiteral(lit: Literal)
         val v = value.asInstanceOf[Decimal]
         (TreeBuilder.makeDecimalLiteral(v.toString, v.precision, v.scale), resultType)
       case d: DateType =>
-        val stringDate = DateTimeUtils.toJavaDate(value.asInstanceOf[Integer])
-        (TreeBuilder.makeStringLiteral(stringDate.toString), new ArrowType.Utf8())
-        //throw new UnsupportedOperationException(s"DateType is not supported yet.")
+        val origIntNode = TreeBuilder.makeLiteral(value.asInstanceOf[Integer])
+        val dateNode = TreeBuilder.makeFunction("castDATE", Lists.newArrayList(origIntNode), new ArrowType.Date(DateUnit.DAY))
+        (dateNode, new ArrowType.Date(DateUnit.DAY))
     }
   }
 }
