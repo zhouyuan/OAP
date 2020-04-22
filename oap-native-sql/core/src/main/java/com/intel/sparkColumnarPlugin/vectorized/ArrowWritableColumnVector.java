@@ -1565,6 +1565,11 @@ public final class ArrowWritableColumnVector extends WritableColumnVector {
     }
 
     @Override
+    final void setInt(int rowId, int value) {
+      writer.set(rowId, value);
+    }
+
+    @Override
     final void setNull(int rowId) {
       writer.setNull(rowId);
     }

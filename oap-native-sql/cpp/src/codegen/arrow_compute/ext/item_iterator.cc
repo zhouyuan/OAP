@@ -29,7 +29,8 @@ class ItemIterator::Impl {
   PROCESS(UInt64Type)                    \
   PROCESS(Int64Type)                     \
   PROCESS(FloatType)                     \
-  PROCESS(DoubleType)
+  PROCESS(DoubleType)                    \
+  PROCESS(Date32Type)
 
   static arrow::Status MakeItemIteratorImpl(std::shared_ptr<arrow::DataType> type,
                                             bool is_array_list,
