@@ -23,10 +23,16 @@ set(source_root_directory ${CMAKE_CURRENT_SOURCE_DIR})
 
 # Gandiva protobuf
 
+set(CMAKE_FIND_LIBRARY_SUFFIXES ".so")
 find_package(Protobuf)
 
-if(NOT Protobuf_FOUND)
-  message("Building Protocol Buffers from source")
+if ("${Protobuf_LIBRARY}" STREQUAL "Protobuf_LIBRARY-NOTFOUND")
+  message(WARNING "libprotobuf.so not found, will build from source")
+  set(BUILD_PROTOBUF true)
+endif()
+
+if(BUILD_PROTOBUF)
+  message(STATUS "Building Protocol Buffers from source")
   set (PROTOBUF_SOURCE_URL
        "https://github.com/protocolbuffers/protobuf/releases/download/v3.7.1/protobuf-all-3.7.1.tar.gz"
         "https://github.com/ursa-labs/thirdparty/releases/download/latest/protobuf-v3.7.1.tar.gz"
@@ -180,7 +186,7 @@ set(SPARK_COLUMNAR_PLUGIN_SRCS
 file(MAKE_DIRECTORY ${root_directory}/releases)
 add_library(spark_columnar_jni SHARED ${SPARK_COLUMNAR_PLUGIN_SRCS})
 add_dependencies(spark_columnar_jni jni_proto)
-if(NOT Protobuf_FOUND)
+if(BUILD_PROTOBUF)
 target_link_libraries(spark_columnar_jni
                       LINK_PUBLIC ${ARROW_LIB} ${PARQUET_LIB} ${GANDIVA_LIB} ${GANDIVA_LINK_LIBS}
                       LINK_PRIVATE protobuf::libprotobuf)
