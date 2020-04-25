@@ -108,14 +108,12 @@ class ColumnarContains(left: Expression, right: Expression, original: Expression
   override def doColumnarCodeGen(args: java.lang.Object): (TreeNode, ArrowType) = {
     val (left_node, left_type): (TreeNode, ArrowType) =
       left.asInstanceOf[ColumnarExpression].doColumnarCodeGen(args)
-    //FIXME(): use like %right% as gandiva does not support contains
-    val newRightStr = "%" + right + "%"
     val (right_node, right_type): (TreeNode, ArrowType) =
-      (TreeBuilder.makeStringLiteral(newRightStr), new ArrowType.Utf8())
+      (TreeBuilder.makeStringLiteral(right.toString()), new ArrowType.Utf8())
 
     val resultType = new ArrowType.Bool()
     val funcNode =
-      TreeBuilder.makeFunction("like", Lists.newArrayList(left_node, right_node), resultType)
+      TreeBuilder.makeFunction("is_substr", Lists.newArrayList(left_node, right_node), resultType)
     (funcNode, resultType)
   }
 }
