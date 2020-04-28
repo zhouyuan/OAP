@@ -74,7 +74,7 @@ jobject MakeRecordBatchBuilder(JNIEnv* env, std::shared_ptr<arrow::Schema> schem
     env->SetObjectArrayElement(field_array, i, field);
 
     for (auto& buffer : dataArray->buffers) {
-      buffers.push_back(buffer);
+      buffers.push_back(std::move(buffer));
     }
   }
 
@@ -82,18 +82,17 @@ jobject MakeRecordBatchBuilder(JNIEnv* env, std::shared_ptr<arrow::Schema> schem
       env->NewObjectArray(buffers.size(), arrowbuf_builder_class, nullptr);
 
   for (size_t j = 0; j < buffers.size(); ++j) {
-    auto buffer = buffers[j];
     uint8_t* data = nullptr;
     int size = 0;
     int64_t capacity = 0;
-    if (buffer != nullptr) {
-      data = (uint8_t*)buffer->data();
-      size = (int)buffer->size();
-      capacity = buffer->capacity();
+    if (buffers[j] != nullptr) {
+      data = (uint8_t*)buffers[j]->data();
+      size = (int)buffers[j]->size();
+      capacity = buffers[j]->capacity();
     }
     jobject arrowbuf_builder =
         env->NewObject(arrowbuf_builder_class, arrowbuf_builder_constructor,
-                       buffer_holder_.Insert(buffer), data, size, capacity);
+                       buffer_holder_.Insert(std::move(buffers[j])), data, size, capacity);
     env->SetObjectArrayElement(arrowbuf_builder_array, j, arrowbuf_builder);
   }
 
@@ -179,6 +178,8 @@ void JNI_OnUnload(JavaVM* vm, void* reserved) {
   env->DeleteGlobalRef(arrow_record_batch_builder_class);
 
   buffer_holder_.Clear();
+  batch_iterator_holder_.Clear();
+  handler_holder_.Clear();
 }
 
 JNIEXPORT jlong JNICALL
@@ -267,7 +268,7 @@ Java_com_intel_sparkColumnarPlugin_vectorized_ExpressionEvaluatorJniWrapper_nati
         "nativeBuild: failed to create CodeGenerator, err msg is " + msg.message();
     env->ThrowNew(io_exception_class, error_message.c_str());
   }
-  return handler_holder_.Insert(std::shared_ptr<CodeGenerator>(handler));
+  return handler_holder_.Insert(std::move(handler));
 }
 
 JNIEXPORT void JNICALL
@@ -475,8 +476,8 @@ Java_com_intel_sparkColumnarPlugin_vectorized_ExpressionEvaluatorJniWrapper_nati
     env->ThrowNew(io_exception_class, error_message.c_str());
   }
 
-  return batch_iterator_holder_.Insert(
-      std::shared_ptr<ResultIterator<arrow::RecordBatch>>(out));
+  jlong ret = batch_iterator_holder_.Insert(std::move(out));
+  return ret;
 }
 
 JNIEXPORT void JNICALL

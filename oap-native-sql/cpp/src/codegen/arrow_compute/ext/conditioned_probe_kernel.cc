@@ -662,6 +662,10 @@ extern "C" void MakeConditioner(std::shared_ptr<ConditionerBase> *out) {
       };
     }
 
+   ~ConditionedProbeArraysResultIterator() {
+      std::cout << "ConditionedProbeArraysResultIterator deconstor\n";
+    }
+
     arrow::Status ProcessAndCacheOne(
         ArrayList in, const std::shared_ptr<arrow::Array>& selection) override {
       // key preparation

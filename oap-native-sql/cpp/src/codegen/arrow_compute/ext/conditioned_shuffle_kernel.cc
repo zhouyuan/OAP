@@ -395,6 +395,10 @@ class ConditionedShuffleArrayListKernel::Impl {
           eval_func_(eval_func),
           in_indices_iter_(in_indices_iter) {}
 
+    ~ConditionShuffleCodeGenResultIterator() {
+      std::cout << "ConditionShuffleCodeGenResultIterator deconstor\n";
+    }
+
     arrow::Status Process(
         std::vector<std::shared_ptr<arrow::Array>> in,
         std::shared_ptr<arrow::RecordBatch>* out,

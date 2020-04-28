@@ -498,7 +498,7 @@ arrow::Status ExprVisitor::MakeResultIterator(
   }
   if (!finish_visitor_) {
     RETURN_NOT_OK(impl_->MakeResultIterator(schema, &result_batch_iterator_));
-    *out = result_batch_iterator_;
+    *out = std::move(result_batch_iterator_);
   } else {
     return arrow::Status::NotImplemented(
         "FinishVsitor MakeResultIterator is not tested, so mark as not implemented "

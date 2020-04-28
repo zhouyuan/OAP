@@ -160,11 +160,11 @@ class SplitArrayListWithActionKernel::Impl {
       for (auto action : action_list_) {
         RETURN_NOT_OK(action->Finish(offset, length, &arr_list));
       }
-      *out = arrow::RecordBatch::Make(schema, length, arr_list);
+      *out = std::move(arrow::RecordBatch::Make(schema, length, arr_list));
       return arrow::Status::OK();
     };
-    *out = std::make_shared<SplitArrayWithActionResultIterator>(ctx_, total_length,
-                                                                eval_func);
+    *out = std::move(std::make_shared<SplitArrayWithActionResultIterator>(ctx_, total_length,
+                                                                eval_func));
     return arrow::Status::OK();
   }
 

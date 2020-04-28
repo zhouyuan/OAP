@@ -177,6 +177,10 @@ class ColumnarAggregation(
       aggregator.close()
       aggregator = null
     }
+    if (result_iterator != null) {
+      result_iterator.close()
+      result_iterator = null
+    }
   }
 
   def updateAggregationResult(columnarBatch: ColumnarBatch): Unit = {
@@ -246,12 +250,12 @@ class ColumnarAggregation(
     }
   }
 
+  var result_iterator: BatchIterator = _
   def createIterator(cbIterator: Iterator[ColumnarBatch]): Iterator[ColumnarBatch] = {
-    new Iterator[ColumnarBatch] {
+    new Iterator[ColumnarBatch]{
       var cb: ColumnarBatch = null
       var nextCalled = false
       var resultColumnarBatch: ColumnarBatch = null
-      var result_iterator: BatchIterator = _
       var data_loaded = false
       var nextBatch = true
 
@@ -261,6 +265,7 @@ class ColumnarAggregation(
         }
         if ( !nextBatch ) {
           if (result_iterator != null) {
+            logInfo("Close result_iterator")
             result_iterator.close()
             result_iterator = null
           }
