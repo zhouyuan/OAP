@@ -17,6 +17,7 @@ import org.apache.arrow.vector.types.pojo.Schema;
 import org.apache.arrow.vector.types.pojo.Field;
 
 import org.apache.spark.annotation.Evolving;
+import org.apache.spark.sql.catalyst.util.DateTimeUtils;
 import org.apache.spark.sql.internal.SQLConf;
 import org.apache.spark.sql.execution.vectorized.WritableColumnVector;
 import org.apache.spark.sql.util.ArrowUtils;
@@ -951,7 +952,8 @@ public final class ArrowWritableColumnVector extends WritableColumnVector {
 
     @Override
     final UTF8String getUTF8String(int rowId) {
-      return UTF8String.fromString(Integer.toString(accessor.get(rowId)));
+      Date jDate = DateTimeUtils.toJavaDate((accessor.get(rowId)));
+      return UTF8String.fromString(jDate.toString());
     }
 
   }
