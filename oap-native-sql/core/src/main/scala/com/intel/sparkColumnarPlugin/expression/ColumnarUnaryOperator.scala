@@ -34,6 +34,21 @@ class ColumnarIsNotNull(child: Expression, original: Expression)
   }
 }
 
+class ColumnarIsNull(child: Expression, original: Expression)
+    extends IsNotNull(child: Expression)
+    with ColumnarExpression
+    with Logging {
+  override def doColumnarCodeGen(args: java.lang.Object): (TreeNode, ArrowType) = {
+    val (child_node, childType): (TreeNode, ArrowType) =
+      child.asInstanceOf[ColumnarExpression].doColumnarCodeGen(args)
+
+    val resultType = new ArrowType.Bool()
+    val funcNode =
+      TreeBuilder.makeFunction("isnull", Lists.newArrayList(child_node), resultType)
+    (funcNode, resultType)
+  }
+}
+
 class ColumnarYear(child: Expression, original: Expression)
     extends Year(child: Expression)
     with ColumnarExpression
@@ -72,6 +87,8 @@ class ColumnarNot(child: Expression, original: Expression)
 object ColumnarUnaryOperator {
 
   def create(child: Expression, original: Expression): Expression = original match {
+    case in: IsNull =>
+      new ColumnarIsNull(child, in)
     case i: IsNotNull =>
       new ColumnarIsNotNull(child, i)
     case y: Year =>
