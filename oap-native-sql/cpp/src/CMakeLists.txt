@@ -13,6 +13,7 @@ set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 set(CMAKE_BUILD_TYPE  "Release")
+message(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
 
 option(TESTS "Build the tests" OFF)
 option(BENCHMARKS "Build the benchmarks" OFF)
@@ -118,11 +119,123 @@ set(PROTO_HDRS "${PROTO_OUTPUT_DIR}/Exprs.pb.h")
 set(GANDIVA_LINK_LIBS gandiva)
 
 #######
+set(ARROW_GTEST_BUILD_VERSION 1.8.1)
+if(DEFINED ENV{ARROW_GTEST_URL})
+  set(GTEST_SOURCE_URL "$ENV{ARROW_GTEST_URL}")
+else()
+  set(
+    GTEST_SOURCE_URL
+    "https://github.com/google/googletest/archive/release-${ARROW_GTEST_BUILD_VERSION}.tar.gz"
+    "https://chromium.googlesource.com/external/github.com/google/googletest/+archive/release-${ARROW_GTEST_BUILD_VERSION}.tar.gz"
+    "https://github.com/ursa-labs/thirdparty/releases/download/latest/gtest-${ARROW_GTEST_BUILD_VERSION}.tar.gz"
+    "https://dl.bintray.com/ursalabs/arrow-gtest/gtest-${ARROW_GTEST_BUILD_VERSION}.tar.gz"
+    )
+endif()
+
 if(TESTS)
   find_package(GTest)
+# ----------------------------------------------------------------------
+# Google gtest
+macro(build_gtest)
+  message(STATUS "Building gtest from source")
+  set(GTEST_VENDORED TRUE)
+  set(GTEST_CMAKE_CXX_FLAGS ${EP_CXX_FLAGS})
+
+  if(CMAKE_BUILD_TYPE MATCHES DEBUG)
+    set(CMAKE_GTEST_DEBUG_EXTENSION "d")
+  else()
+    set(CMAKE_GTEST_DEBUG_EXTENSION "")
+  endif()
+
+  set(GTEST_PREFIX "${CMAKE_CURRENT_BINARY_DIR}/googletest_ep-prefix")
+  set(GTEST_INCLUDE_DIR "${GTEST_PREFIX}/include")
+
+  set(_GTEST_RUNTIME_DIR ${BUILD_OUTPUT_ROOT_DIRECTORY})
+
+  if(MSVC)
+    set(_GTEST_IMPORTED_TYPE IMPORTED_IMPLIB)
+    set(_GTEST_LIBRARY_SUFFIX
+        "${CMAKE_GTEST_DEBUG_EXTENSION}${CMAKE_IMPORT_LIBRARY_SUFFIX}")
+    # Use the import libraries from the EP
+    set(_GTEST_LIBRARY_DIR "${GTEST_PREFIX}/lib")
+  else()
+    set(_GTEST_IMPORTED_TYPE IMPORTED_LOCATION)
+    set(_GTEST_LIBRARY_SUFFIX
+        "${CMAKE_GTEST_DEBUG_EXTENSION}${CMAKE_SHARED_LIBRARY_SUFFIX}")
+
+    # Library and runtime same on non-Windows
+    set(_GTEST_LIBRARY_DIR "${_GTEST_RUNTIME_DIR}")
+  endif()
+
+  set(GTEST_SHARED_LIB
+      "${_GTEST_LIBRARY_DIR}/${CMAKE_SHARED_LIBRARY_PREFIX}gtest${_GTEST_LIBRARY_SUFFIX}")
+  set(GMOCK_SHARED_LIB
+      "${_GTEST_LIBRARY_DIR}/${CMAKE_SHARED_LIBRARY_PREFIX}gmock${_GTEST_LIBRARY_SUFFIX}")
+  set(
+    GTEST_MAIN_SHARED_LIB
+    "${_GTEST_LIBRARY_DIR}/${CMAKE_SHARED_LIBRARY_PREFIX}gtest_main${_GTEST_LIBRARY_SUFFIX}"
+    )
+  set(GTEST_CMAKE_ARGS
+      ${EP_COMMON_TOOLCHAIN}
+      -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
+      "-DCMAKE_INSTALL_PREFIX=${GTEST_PREFIX}"
+      -DBUILD_SHARED_LIBS=ON
+      -DCMAKE_CXX_FLAGS=${GTEST_CMAKE_CXX_FLAGS}
+      -DCMAKE_CXX_FLAGS_${UPPERCASE_BUILD_TYPE}=${GTEST_CMAKE_CXX_FLAGS})
+  set(GMOCK_INCLUDE_DIR "${GTEST_PREFIX}/include")
+
+  if(MSVC)
+    if(NOT ("${CMAKE_GENERATOR}" STREQUAL "Ninja"))
+      set(_GTEST_RUNTIME_DIR ${_GTEST_RUNTIME_DIR}/${CMAKE_BUILD_TYPE})
+    endif()
+    set(GTEST_CMAKE_ARGS
+        ${GTEST_CMAKE_ARGS} "-DCMAKE_RUNTIME_OUTPUT_DIRECTORY=${_GTEST_RUNTIME_DIR}"
+        "-DCMAKE_RUNTIME_OUTPUT_DIRECTORY_${CMAKE_BUILD_TYPE}=${_GTEST_RUNTIME_DIR}")
+  else()
+    list(
+      APPEND GTEST_CMAKE_ARGS "-DCMAKE_LIBRARY_OUTPUT_DIRECTORY=${_GTEST_RUNTIME_DIR}"
+             "-DCMAKE_RUNTIME_OUTPUT_DIRECTORY_${CMAKE_BUILD_TYPE}=${_GTEST_RUNTIME_DIR}")
+  endif()
+
+  add_definitions(-DGTEST_LINKED_AS_SHARED_LIBRARY=1)
+
+  externalproject_add(googletest_ep
+                      URL ${GTEST_SOURCE_URL}
+                      BUILD_BYPRODUCTS ${GTEST_SHARED_LIB} ${GTEST_MAIN_SHARED_LIB}
+                                       ${GMOCK_SHARED_LIB}
+                      CMAKE_ARGS ${GTEST_CMAKE_ARGS} ${EP_LOG_OPTIONS})
+
+  # The include directory must exist before it is referenced by a target.
+  file(MAKE_DIRECTORY "${GTEST_INCLUDE_DIR}")
+
+  add_library(GTest::gtest SHARED IMPORTED)
+  set_target_properties(GTest::gtest
+                        PROPERTIES ${_GTEST_IMPORTED_TYPE} "${GTEST_SHARED_LIB}"
+                                   INTERFACE_INCLUDE_DIRECTORIES "${GTEST_INCLUDE_DIR}")
+
+  add_library(GTest::gtest_main SHARED IMPORTED)
+  set_target_properties(GTest::gtest_main
+                        PROPERTIES ${_GTEST_IMPORTED_TYPE} "${GTEST_MAIN_SHARED_LIB}"
+                                   INTERFACE_INCLUDE_DIRECTORIES "${GTEST_INCLUDE_DIR}")
+
+  add_library(GTest::gmock SHARED IMPORTED)
+  set_target_properties(GTest::gmock
+                        PROPERTIES ${_GTEST_IMPORTED_TYPE} "${GMOCK_SHARED_LIB}"
+                                   INTERFACE_INCLUDE_DIRECTORIES "${GTEST_INCLUDE_DIR}")
+  add_dependencies(GTest::gtest googletest_ep)
+  add_dependencies(GTest::gtest_main googletest_ep)
+  add_dependencies(GTest::gmock googletest_ep)
+endmacro()
+
+#if(GTEST_FOUND)
+  message(WARNING "Gtest not found, will build from source")
+  build_gtest()
+#endif()
+
+
 macro(package_add_test TESTNAME)
   add_executable(${TESTNAME} ${ARGN})
-  target_link_libraries(${TESTNAME} gtest gmock gtest_main spark_columnar_jni ${CMAKE_THREAD_LIBS_INIT})
+  target_link_libraries(${TESTNAME} gtest gmock gtest_main spark_columnar_jni ${PROTOBUF_LIBRARY} ${CMAKE_THREAD_LIBS_INIT})
   target_include_directories(${TESTNAME} PUBLIC ${source_root_directory})
   gtest_discover_tests(${TESTNAME}
     WORKING_DIRECTORY ${PROJECT_DIR}
