@@ -1,6 +1,10 @@
 package com.intel.sparkColumnarPlugin
 
 import com.intel.sparkColumnarPlugin.execution._
+import com.intel.sparkColumnarPlugin.expression._
+import org.apache.spark.sql.catalyst.expressions._
+
+import scala.util.control.Breaks._
 
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.catalyst.rules.Rule
@@ -22,17 +26,36 @@ case class ColumnarPreOverrides() extends Rule[SparkPlan] {
       //new ColumnarProjectExec(plan.projectList, replaceWithColumnarPlan(plan.child))
       val columnarPlan = replaceWithColumnarPlan(plan.child)
       val res = if (!columnarPlan.isInstanceOf[ColumnarConditionProjectExec]) {
-        new ColumnarConditionProjectExec(null, plan.projectList, columnarPlan)
+        val supp = checklist(plan.projectList)
+        if (supp) {
+          logDebug(s"Columnar Processing for ${plan.getClass} is currently supported.")
+          new ColumnarConditionProjectExec(null, plan.projectList, columnarPlan)
+        } else {
+          logDebug(s"Columnar Processing for ${plan.getClass} is currently not supported due to unsupported function in sub tasks")
+          plan
+        }
       } else {
         val cur_plan = columnarPlan.asInstanceOf[ColumnarConditionProjectExec]
-        new ColumnarConditionProjectExec(cur_plan.condition, plan.projectList, cur_plan.child)
+        val supp = check(cur_plan.condition)
+        if (supp) {
+          logDebug(s"Columnar Processing for ${plan.getClass} is currently supported.")
+          new ColumnarConditionProjectExec(cur_plan.condition, plan.projectList, cur_plan.child)
+        } else {
+          logDebug(s"Columnar Processing for ${plan.getClass} is currently not supported due to unsupported function in sub tasks")
+          plan
+        }
       }
-      logDebug(s"Columnar Processing for ${plan.getClass} is currently supported.")
       res
     case plan: FilterExec =>
       val child = replaceWithColumnarPlan(plan.child)
-      logDebug(s"Columnar Processing for ${plan.getClass} is currently supported.")
-      new ColumnarConditionProjectExec(plan.condition, null, child)
+      val supp = check(plan.condition)
+      if (supp) {
+        logDebug(s"Columnar Processing for ${plan.getClass} is currently supported.")
+        new ColumnarConditionProjectExec(plan.condition, null, child)
+      } else {
+        logDebug(s"Columnar Processing for ${plan.getClass} is currently not supported due to unsupported function in sub tasks")
+        plan
+      }
     case plan: HashAggregateExec =>
       val child = replaceWithColumnarPlan(plan.child)
       logDebug(s"Columnar Processing for ${plan.getClass} is currently supported.")
@@ -80,6 +103,26 @@ case class ColumnarPreOverrides() extends Rule[SparkPlan] {
   def apply(plan: SparkPlan): SparkPlan = {
     replaceWithColumnarPlan(plan)
   }
+
+  def checklist(exprList: Seq[Expression]): Boolean = {
+    var supported :Boolean = true
+    for (expr <- exprList if(!check(expr))) {
+      supported = false
+      break
+    }
+    supported
+  }
+
+  def check(condExpr: Expression): Boolean = {
+    var supported :Boolean = true
+    try {
+      ColumnarExpressionConverter.replaceWithColumnarExpression(condExpr, null)
+    } catch {
+      case e: Exception => supported = false
+    }
+    supported
+  }
+
 }
 
 case class ColumnarPostOverrides() extends Rule[SparkPlan] {

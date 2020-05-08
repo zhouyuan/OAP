@@ -10,13 +10,13 @@ object ColumnarExpressionConverter extends Logging {
 
   def replaceWithColumnarExpression(expr: Expression, attributeSeq: Seq[Attribute] = null): Expression = expr match {
     case a: Alias =>
-      logInfo(s"${expr.getClass} ${expr} is supported, no_cal is $check_if_no_calculation.")
+      logDebug(s"${expr.getClass} ${expr} is supported, no_cal is $check_if_no_calculation.")
       new ColumnarAlias(replaceWithColumnarExpression(a.child, attributeSeq), a.name)(
         a.exprId,
         a.qualifier,
         a.explicitMetadata)
     case a: AttributeReference =>
-      logInfo(s"${expr.getClass} ${expr} is supported, no_cal is $check_if_no_calculation.")
+      logDebug(s"${expr.getClass} ${expr} is supported, no_cal is $check_if_no_calculation.")
       if (attributeSeq != null) {
         val bindReference = BindReferences.bindReference(expr, attributeSeq, true)
         if (bindReference == expr) {
@@ -28,42 +28,42 @@ object ColumnarExpressionConverter extends Logging {
         return new ColumnarAttributeReference(a.name, a.dataType, a.nullable, a.metadata)(a.exprId, a.qualifier) 
       }
     case lit: Literal =>
-      logInfo(s"${expr.getClass} ${expr} is supported, no_cal is $check_if_no_calculation.")
+      logDebug(s"${expr.getClass} ${expr} is supported, no_cal is $check_if_no_calculation.")
       new ColumnarLiteral(lit)
     case binArith: BinaryArithmetic =>
       check_if_no_calculation = false
-      logInfo(s"${expr.getClass} ${expr} is supported, no_cal is $check_if_no_calculation.")
+      logDebug(s"${expr.getClass} ${expr} is supported, no_cal is $check_if_no_calculation.")
       ColumnarBinaryArithmetic.create(
         replaceWithColumnarExpression(binArith.left, attributeSeq),
         replaceWithColumnarExpression(binArith.right, attributeSeq),
         expr)
     case b: BoundReference =>
-      logInfo(s"${expr.getClass} ${expr} is supported, no_cal is $check_if_no_calculation.")
+      logDebug(s"${expr.getClass} ${expr} is supported, no_cal is $check_if_no_calculation.")
       new ColumnarBoundReference(b.ordinal, b.dataType, b.nullable)
     case b: BinaryOperator =>
       check_if_no_calculation = false
-      logInfo(s"${expr.getClass} ${expr} is supported, no_cal is $check_if_no_calculation.")
+      logDebug(s"${expr.getClass} ${expr} is supported, no_cal is $check_if_no_calculation.")
       ColumnarBinaryOperator.create(
         replaceWithColumnarExpression(b.left, attributeSeq),
         replaceWithColumnarExpression(b.right, attributeSeq),
         expr)
     case sp: StringPredicate =>
       check_if_no_calculation = false
-      logInfo(s"${expr.getClass} ${expr} is supported, no_cal is $check_if_no_calculation.")
+      logDebug(s"${expr.getClass} ${expr} is supported, no_cal is $check_if_no_calculation.")
       ColumnarBinaryOperator.create(
         replaceWithColumnarExpression(sp.left, attributeSeq),
         replaceWithColumnarExpression(sp.right, attributeSeq),
         expr)
     case sr: StringRegexExpression =>
       check_if_no_calculation = false
-      logInfo(s"${expr.getClass} ${expr} is supported, no_cal is $check_if_no_calculation.")
+      logDebug(s"${expr.getClass} ${expr} is supported, no_cal is $check_if_no_calculation.")
       ColumnarBinaryOperator.create(
         replaceWithColumnarExpression(sr.left, attributeSeq),
         replaceWithColumnarExpression(sr.right, attributeSeq),
         expr)
     case cw: CaseWhen =>
       check_if_no_calculation = false
-      logInfo(s"${expr.getClass} ${expr} is supported, no_cal is $check_if_no_calculation.")
+      logDebug(s"${expr.getClass} ${expr} is supported, no_cal is $check_if_no_calculation.")
       val colBranches = cw.branches.map{ expr => {
           (replaceWithColumnarExpression(expr._1, attributeSeq), replaceWithColumnarExpression(expr._2, attributeSeq))
         }
@@ -72,23 +72,20 @@ object ColumnarExpressionConverter extends Logging {
           replaceWithColumnarExpression(expr, attributeSeq)
         }
       }
-
-      logInfo(s"col_branches: $colBranches")
-      logInfo(s"col_else: $colElseValue")
       ColumnarCaseWhenOperator.create(
         colBranches,
         colElseValue,
         expr)
     case i: In =>
       check_if_no_calculation = false
-      logInfo(s"${expr.getClass} ${expr} is supported, no_cal is $check_if_no_calculation.")
+      logDebug(s"${expr.getClass} ${expr} is supported, no_cal is $check_if_no_calculation.")
       ColumnarInOperator.create(
         replaceWithColumnarExpression(i.value, attributeSeq),
         i.list,
         expr)
     case ss: Substring =>
       check_if_no_calculation = false
-      logInfo(s"${expr.getClass} ${expr} is supported, no_cal is $check_if_no_calculation.")
+      logDebug(s"${expr.getClass} ${expr} is supported, no_cal is $check_if_no_calculation.")
       ColumnarTernaryOperator.create(
         replaceWithColumnarExpression(ss.str, attributeSeq),
         replaceWithColumnarExpression(ss.pos),
@@ -98,10 +95,10 @@ object ColumnarExpressionConverter extends Logging {
       if (!u.isInstanceOf[Cast]) {
         check_if_no_calculation = false
       }
-      logInfo(s"${expr.getClass} ${expr} is supported, no_cal is $check_if_no_calculation.")
+      logDebug(s"${expr.getClass} ${expr} is supported, no_cal is $check_if_no_calculation.")
       ColumnarUnaryOperator.create(replaceWithColumnarExpression(u.child, attributeSeq), expr)
     case s: org.apache.spark.sql.execution.ScalarSubquery =>
-      logInfo(s"${expr.getClass} ${expr} is supported, no_cal is $check_if_no_calculation.")
+      logDebug(s"${expr.getClass} ${expr} is supported, no_cal is $check_if_no_calculation.")
       new ColumnarScalarSubquery(s)
     case expr =>
       logWarning(s"${expr.getClass} ${expr} is not currently supported.")
