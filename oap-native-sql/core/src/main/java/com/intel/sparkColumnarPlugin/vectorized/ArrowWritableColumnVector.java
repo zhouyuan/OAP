@@ -921,6 +921,12 @@ public final class ArrowWritableColumnVector extends WritableColumnVector {
       if (isNullAt(rowId)) return null;
       return Decimal.apply(accessor.getObject(rowId), precision, scale);
     }
+
+    @Override
+    final UTF8String getUTF8String(int rowId) {
+      Decimal decimalValue = getDecimal(rowId, accessor.getPrecision(), accessor.getScale());
+      return UTF8String.fromString(decimalValue.toString());
+    }
   }
 
   private static class StringAccessor extends ArrowVectorAccessor {
