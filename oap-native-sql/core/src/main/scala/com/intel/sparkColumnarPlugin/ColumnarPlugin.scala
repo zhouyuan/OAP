@@ -23,26 +23,25 @@ case class ColumnarPreOverrides() extends Rule[SparkPlan] {
       logDebug(s"Columnar Processing for ${plan.getClass} is currently supported.")
       new ColumnarBatchScanExec(plan.output, plan.scan)
     case plan: ProjectExec =>
-      //new ColumnarProjectExec(plan.projectList, replaceWithColumnarPlan(plan.child))
       val columnarPlan = replaceWithColumnarPlan(plan.child)
       val res = if (!columnarPlan.isInstanceOf[ColumnarConditionProjectExec]) {
-        val supp = checklist(plan.projectList)
+        val supp = checkList(plan.projectList)
         if (supp) {
           logDebug(s"Columnar Processing for ${plan.getClass} is currently supported.")
           new ColumnarConditionProjectExec(null, plan.projectList, columnarPlan)
         } else {
           logDebug(s"Columnar Processing for ${plan.getClass} is currently not supported due to unsupported function in sub tasks")
-          plan
+          plan.withNewChildren(Seq(columnarPlan))
         }
       } else {
         val cur_plan = columnarPlan.asInstanceOf[ColumnarConditionProjectExec]
-        val supp = check(cur_plan.condition)
+        val supp = check(cur_plan.condition) | checkList(plan.projectList)
         if (supp) {
           logDebug(s"Columnar Processing for ${plan.getClass} is currently supported.")
           new ColumnarConditionProjectExec(cur_plan.condition, plan.projectList, cur_plan.child)
         } else {
           logDebug(s"Columnar Processing for ${plan.getClass} is currently not supported due to unsupported function in sub tasks")
-          plan
+          plan.withNewChildren(Seq(columnarPlan))
         }
       }
       res
@@ -54,19 +53,25 @@ case class ColumnarPreOverrides() extends Rule[SparkPlan] {
         new ColumnarConditionProjectExec(plan.condition, null, child)
       } else {
         logDebug(s"Columnar Processing for ${plan.getClass} is currently not supported due to unsupported function in sub tasks")
-        plan
+        plan.withNewChildren(Seq(child))
       }
     case plan: HashAggregateExec =>
       val child = replaceWithColumnarPlan(plan.child)
-      logDebug(s"Columnar Processing for ${plan.getClass} is currently supported.")
-      new ColumnarHashAggregateExec(
-        plan.requiredChildDistributionExpressions,
-        plan.groupingExpressions,
-        plan.aggregateExpressions,
-        plan.aggregateAttributes,
-        plan.initialInputBufferOffset,
-        plan.resultExpressions,
-        child)
+      val supp = checkList(plan.aggregateExpressions)
+      if (supp) {
+         logDebug(s"Columnar Processing for ${plan.getClass} is currently supported.")
+         new ColumnarHashAggregateExec(
+           plan.requiredChildDistributionExpressions,
+           plan.groupingExpressions,
+           plan.aggregateExpressions,
+           plan.aggregateAttributes,
+           plan.initialInputBufferOffset,
+           plan.resultExpressions,
+           child)
+      } else {
+         logDebug(s"Columnar Processing for ${plan.getClass} is currently not supported due to unsupported function in sub tasks")
+         plan.withNewChildren(Seq(child))
+      }
     /*case plan: SortExec =>
       val child = replaceWithColumnarPlan(plan.child)
       logDebug(s"Columnar Processing for ${plan.getClass} is currently supported.")
@@ -84,16 +89,15 @@ case class ColumnarPreOverrides() extends Rule[SparkPlan] {
     case plan: ShuffledHashJoinExec =>
       val left = replaceWithColumnarPlan(plan.left)
       val right = replaceWithColumnarPlan(plan.right)
-      logDebug(s"Columnar Processing for ${plan.getClass} is currently supported.")
-      val res = new ColumnarShuffledHashJoinExec(
-        plan.leftKeys,
-        plan.rightKeys,
-        plan.joinType,
-        plan.buildSide,
-        plan.condition,
-        left,
-        right)
-      res
+      val supp = checkJoin(plan.joinType.toString)
+      if (supp) {
+        logDebug(s"Columnar Processing for ${plan.getClass} is currently supported.")
+        new ColumnarShuffledHashJoinExec(
+          plan.leftKeys, plan.rightKeys, plan.joinType, plan.buildSide, plan.condition, left, right)
+      } else {
+         logDebug(s"Columnar Processing for ${plan.getClass} is currently not supported due to unsupported join type")
+        plan
+      }
     case p =>
       val children = p.children.map(replaceWithColumnarPlan)
       logDebug(s"Columnar Processing for ${p.getClass} is not currently supported.")
@@ -104,7 +108,7 @@ case class ColumnarPreOverrides() extends Rule[SparkPlan] {
     replaceWithColumnarPlan(plan)
   }
 
-  def checklist(exprList: Seq[Expression]): Boolean = {
+  def checkList(exprList: Seq[Expression]): Boolean = {
     var supported :Boolean = true
     for (expr <- exprList if(!check(expr))) {
       supported = false
@@ -122,6 +126,16 @@ case class ColumnarPreOverrides() extends Rule[SparkPlan] {
     }
     supported
   }
+
+  def checkJoin(joinType: String): Boolean = {
+    var supported :Boolean = false
+    val supportedJoinList = List("InnerLike", "LeftSemi", "LeftOuter", "RightOuter", "LeftAnti")
+    for (t <- supportedJoinList if(joinType == t)) {
+      supported = true
+    }
+    supported
+  }
+
 
 }
 
