@@ -382,6 +382,10 @@ class SumArrayKernel::Impl {
   } break;
       PROCESS_SUPPORTED_TYPES(PROCESS)
 #undef PROCESS
+    case arrow::Decimal128Type::type_id: {
+      RETURN_NOT_OK(FinishInternalDecimal<arrow::Decimal128Type>(out));
+    } break;
+
     }
     return arrow::Status::OK();
   }
@@ -398,7 +402,23 @@ class SumArrayKernel::Impl {
     std::shared_ptr<arrow::Array> arr_out;
     std::shared_ptr<arrow::Scalar> scalar_out;
     scalar_out = arrow::MakeScalar(res);
-    RETURN_NOT_OK(arrow::MakeArrayFromScalar(*scalar_out.get(), 1, &arr_out));
+    arr_out = arrow::MakeArrayFromScalar(*scalar_out.get(), 1).ValueOrDie();
+    out->push_back(arr_out);
+    return arrow::Status::OK();
+  }
+
+  template <typename DataType>
+  arrow::Status FinishInternalDecimal(ArrayList* out) {
+    using ScalarType = typename arrow::TypeTraits<DataType>::ScalarType;
+    arrow::Decimal128 res(0);
+    for (auto scalar_item : scalar_list_) {
+      auto typed_scalar = std::dynamic_pointer_cast<ScalarType>(scalar_item);
+      res += typed_scalar->value;
+    }
+    std::shared_ptr<arrow::Array> arr_out;
+    std::shared_ptr<arrow::Scalar> scalar_out;
+    scalar_out = std::make_shared<arrow::Decimal128Scalar>(arrow::Decimal128(res), arrow::decimal(12, 2)),
+    arr_out = arrow::MakeArrayFromScalar(*scalar_out.get(), 1).ValueOrDie();
     out->push_back(arr_out);
     return arrow::Status::OK();
   }
@@ -460,7 +480,7 @@ class CountArrayKernel::Impl {
     std::shared_ptr<arrow::Array> arr_out;
     std::shared_ptr<arrow::Scalar> scalar_out;
     scalar_out = arrow::MakeScalar(res);
-    RETURN_NOT_OK(arrow::MakeArrayFromScalar(*scalar_out.get(), 1, &arr_out));
+    arr_out = arrow::MakeArrayFromScalar(*scalar_out.get(), 1).ValueOrDie();
     out->push_back(arr_out);
     return arrow::Status::OK();
   }
@@ -537,12 +557,12 @@ class SumCountArrayKernel::Impl {
     std::shared_ptr<arrow::Array> sum_out;
     std::shared_ptr<arrow::Scalar> sum_scalar_out;
     sum_scalar_out = arrow::MakeScalar(sum_res);
-    RETURN_NOT_OK(arrow::MakeArrayFromScalar(*sum_scalar_out.get(), 1, &sum_out));
+    sum_out = arrow::MakeArrayFromScalar(*sum_scalar_out.get(), 1).ValueOrDie();
 
     std::shared_ptr<arrow::Array> cnt_out;
     std::shared_ptr<arrow::Scalar> cnt_scalar_out;
     cnt_scalar_out = arrow::MakeScalar(cnt_res);
-    RETURN_NOT_OK(arrow::MakeArrayFromScalar(*cnt_scalar_out.get(), 1, &cnt_out));
+    cnt_out = arrow::MakeArrayFromScalar(*cnt_scalar_out.get(), 1).ValueOrDie();
 
     out->push_back(sum_out);
     out->push_back(cnt_out);
@@ -637,7 +657,7 @@ class AvgByCountArrayKernel::Impl {
     std::shared_ptr<arrow::Array> arr_out;
     std::shared_ptr<arrow::Scalar> scalar_out;
     scalar_out = arrow::MakeScalar(res);
-    RETURN_NOT_OK(arrow::MakeArrayFromScalar(*scalar_out.get(), 1, &arr_out));
+    arr_out = arrow::MakeArrayFromScalar(*scalar_out.get(), 1).ValueOrDie();
 
     out->push_back(arr_out);
 
@@ -702,6 +722,11 @@ class MinArrayKernel::Impl {
   } break;
       PROCESS_SUPPORTED_TYPES(PROCESS)
 #undef PROCESS
+    case arrow::Decimal128Type::type_id: {
+      RETURN_NOT_OK(FinishInternalDecimal<arrow::Decimal128Type>(out));
+    } break;
+
+
     }
     return arrow::Status::OK();
   }
@@ -719,10 +744,28 @@ class MinArrayKernel::Impl {
     std::shared_ptr<arrow::Array> arr_out;
     std::shared_ptr<arrow::Scalar> scalar_out;
     scalar_out = arrow::MakeScalar(res);
-    RETURN_NOT_OK(arrow::MakeArrayFromScalar(*scalar_out.get(), 1, &arr_out));
+    arr_out = arrow::MakeArrayFromScalar(*scalar_out.get(), 1).ValueOrDie();
     out->push_back(arr_out);
     return arrow::Status::OK();
   }
+
+  template <typename DataType>
+  arrow::Status FinishInternalDecimal(ArrayList* out) {
+    using ScalarType = typename arrow::TypeTraits<DataType>::ScalarType;
+    auto typed_scalar = std::dynamic_pointer_cast<ScalarType>(scalar_list_[0]);
+    arrow::Decimal128 res(typed_scalar->value);
+    for (size_t i = 1; i < scalar_list_.size(); i++) {
+      auto typed_scalar = std::dynamic_pointer_cast<ScalarType>(scalar_list_[i]);
+      if (typed_scalar->value < res) res = typed_scalar->value;
+    }
+    std::shared_ptr<arrow::Array> arr_out;
+    std::shared_ptr<arrow::Scalar> scalar_out;
+    scalar_out = std::make_shared<arrow::Decimal128Scalar>(arrow::Decimal128(res), arrow::decimal(12, 2)),
+    arr_out = arrow::MakeArrayFromScalar(*scalar_out.get(), 1).ValueOrDie();
+    out->push_back(arr_out);
+    return arrow::Status::OK();
+  }
+
 
  private:
   arrow::compute::FunctionContext* ctx_;
@@ -780,6 +823,10 @@ class MaxArrayKernel::Impl {
   } break;
       PROCESS_SUPPORTED_TYPES(PROCESS)
 #undef PROCESS
+    case arrow::Decimal128Type::type_id: {
+      RETURN_NOT_OK(FinishInternalDecimal<arrow::Decimal128Type>(out));
+    } break;
+
     }
     return arrow::Status::OK();
   }
@@ -797,7 +844,24 @@ class MaxArrayKernel::Impl {
     std::shared_ptr<arrow::Array> arr_out;
     std::shared_ptr<arrow::Scalar> scalar_out;
     scalar_out = arrow::MakeScalar(res);
-    RETURN_NOT_OK(arrow::MakeArrayFromScalar(*scalar_out.get(), 1, &arr_out));
+    arr_out = arrow::MakeArrayFromScalar(*scalar_out.get(), 1).ValueOrDie();
+    out->push_back(arr_out);
+    return arrow::Status::OK();
+  }
+
+  template <typename DataType>
+  arrow::Status FinishInternalDecimal(ArrayList* out) {
+    using ScalarType = typename arrow::TypeTraits<DataType>::ScalarType;
+    auto typed_scalar = std::dynamic_pointer_cast<ScalarType>(scalar_list_[0]);
+    arrow::Decimal128 res(typed_scalar->value);
+    for (size_t i = 1; i < scalar_list_.size(); i++) {
+      auto typed_scalar = std::dynamic_pointer_cast<ScalarType>(scalar_list_[i]);
+      if (typed_scalar->value > res) res = typed_scalar->value;
+    }
+    std::shared_ptr<arrow::Array> arr_out;
+    std::shared_ptr<arrow::Scalar> scalar_out;
+    scalar_out = std::make_shared<arrow::Decimal128Scalar>(arrow::Decimal128(res), arrow::decimal(12, 2)),
+    arr_out = arrow::MakeArrayFromScalar(*scalar_out.get(), 1).ValueOrDie();
     out->push_back(arr_out);
     return arrow::Status::OK();
   }
