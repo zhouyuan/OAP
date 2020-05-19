@@ -26,5 +26,36 @@ jobs:
       - cd ${TRAVIS_BUILD_DIR}/oap-cache/oap/
       - mvn clean -q -Ppersistent-memory test
       
+    - name: oap-native-sql
+      dist: bionic
+      jdk:
+        - oraclejdk8
+      before_install:
+      echo $TRAVIS_COMMIT_MESSAGE
+      #- if [[ $TRAVIS_COMMIT_MESSAGE != \[oap-native-sql\]* ]]; then travis_terminate 0 ; fi ;
+      - sudo apt-get install cmake
+      - export | grep JAVA_HOME
+      install:
+      - # Download spark 2.4.4
+      - "[ -f spark ] || mkdir spark && cd spark && wget http://archive.apache.org/dist/spark/spark-3.0.0-preview2/spark-3.0.0-preview2-bin-hadoop2.7.tgz && cd .."
+      - "tar -xf ./spark/spark-3.0.0-preview2-bin-hadoop2.7.tgz"
+      - "export SPARK_HOME=`pwd`/spark-3.0.0-preview2-bin-hadoop2.7"
+      before_script:
+      - cd /tmp
+      - git clone https://github.com/intel-bigdata/arrow.git
+      - cd arrow && git checkout native-sql-engine-clean && cd cpp
+      - mkdir build && cd build 
+      - cmake .. -DARROW_JNI=ON -DARROW_GANDIVA_JAVA=ON -DARROW_GANDIVA=ON -DARROW_PARQUET=ON -DARROW_HDFS=ON -DARROW_FILESYSTEM=ON -DARROW_WITH_SNAPPY=ON -DARROW_JSON=ON -DARROW_DATASET=ON && make 
+      - sudo make install
+      - cd ../../java
+      - mvn clean install -q -P arrow-jni -am -Darrow.cpp.build.dir=/tmp/arrow/cpp/build/release/ -DskipTests -Dcheckstyle.skip
+      script:
+      - cd ${TRAVIS_BUILD_DIR}/oap-native-sql/
+      - cd cpp && mkdir build && cd build
+      - cmake .. && make
+      - cd ../../core
+      - mvn clean package -DskipTests #skip core tests
+      - cd ${TRAVIS_BUILD_DIR}/oap-data-source/arrow
+      - mvn clean -q tests
       
       
