@@ -584,8 +584,12 @@ extern "C" void MakeConditioner(std::shared_ptr<ConditionerBase> *out) {
     out.flush();
     out.close();
 
+    const char* env_arrow_dir = std::getenv("LIBARROW_DIR");
+    std::string arrow_header = " -I" + std::string(env_arrow_dir) + "/include ";
+    std::string arrow_lib = " -L" + std::string(env_arrow_dir) + "/lib64 ";
     // compile the code
-    std::string cmd = "gcc -std=c++11 -Wall -Wextra " + cppfile + " -o " + libfile +
+    std::string cmd = "gcc -std=c++11 -Wall -Wextra " + arrow_header +
+	              arrow_lib + cppfile + " -o " + libfile +
                       " -O3 -shared -fPIC -larrow 2> " + logfile;
     int ret = system(cmd.c_str());
     if (WEXITSTATUS(ret) != EXIT_SUCCESS) {
