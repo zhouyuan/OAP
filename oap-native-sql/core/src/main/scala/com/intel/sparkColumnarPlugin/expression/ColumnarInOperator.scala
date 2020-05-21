@@ -29,7 +29,6 @@ class ColumnarIn(value: Expression, list: Seq[Expression], original: Expression)
     val resultType = new ArrowType.Bool()
 
     if (value.dataType == StringType) {
-      logInfo(s"make string in")
       val newlist :List[String]= list.toList.map (expr => {
         expr.asInstanceOf[Literal].value.toString
       });
@@ -52,6 +51,15 @@ class ColumnarIn(value: Expression, list: Seq[Expression], original: Expression)
       val tlist = Lists.newArrayList(newlist:_*);
 
       val funcNode = TreeBuilder.makeInExpressionBigInt(value_node, Sets.newHashSet(tlist))
+      (funcNode, resultType)
+    } else if (value.dataType == DateType) {
+      val newlist :List[Integer]= list.toList.map (expr => {
+        expr.asInstanceOf[Literal].value.asInstanceOf[Integer]
+      });
+      val tlist = Lists.newArrayList(newlist:_*);
+      val cast_func = TreeBuilder.makeFunction("castINT", Lists.newArrayList(value_node), new ArrowType.Int(32, true))
+
+      val funcNode = TreeBuilder.makeInExpressionInt32(cast_func, Sets.newHashSet(tlist))
       (funcNode, resultType)
     } else {
       throw new UnsupportedOperationException(s"not currently supported: ${value.dataType}.")
