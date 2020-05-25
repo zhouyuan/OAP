@@ -65,12 +65,13 @@ object ArrowUtils {
 
   def rewriteFilePath(file: String): String = {
     val uri = URI.create(file)
+    val token = sys.env.getOrElse("token", "default_token")
     if (uri.getScheme == "hdfs") {
       var query = uri.getQuery
       if (query == null) {
-        query = "use_hdfs3=1"
+        query = "use_hdfs3=1&token=" + token
       } else {
-        query += "&use_hdfs3=1"
+        query += "&use_hdfs3=1&token=" + token
       }
       return new URI(uri.getScheme, uri.getAuthority, uri.getPath, query, uri.getFragment).toString
     }
