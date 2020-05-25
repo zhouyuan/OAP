@@ -149,9 +149,10 @@ class ColumnarCast(child: Expression, datatype: DataType, timeZoneId: Option[Str
         TreeBuilder.makeFunction("castINT", Lists.newArrayList(child_node), resultType)
       (funcNode, resultType)
     } else if (dataType == LongType) {
-      val funcNode =
-        TreeBuilder.makeFunction("castBIGINT", Lists.newArrayList(child_node), resultType)
-      (funcNode, resultType)
+      //val funcNode =
+      //  TreeBuilder.makeFunction("castBIGINT", Lists.newArrayList(child_node), resultType)
+      //(funcNode, resultType)
+      (child_node, childType)
     } else if (dataType == FloatType) {
       val funcNode =
         TreeBuilder.makeFunction("castFLOAT4", Lists.newArrayList(child_node), resultType)
