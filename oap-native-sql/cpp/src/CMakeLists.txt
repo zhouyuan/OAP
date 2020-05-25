@@ -180,7 +180,9 @@ set(SPARK_COLUMNAR_PLUGIN_SRCS
         codegen/arrow_compute/ext/codegen_node_visitor_v2.cc
         codegen/arrow_compute/ext/conditioned_shuffle_kernel.cc
         codegen/arrow_compute/ext/conditioned_probe_kernel.cc
+        codegen/arrow_compute/ext/sort_kernel.cc
         codegen/arrow_compute/ext/kernels_ext.cc
+        codegen/arrow_compute/ext/codegen_common.cc
         )
 
 file(MAKE_DIRECTORY ${root_directory}/releases)

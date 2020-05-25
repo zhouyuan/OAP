@@ -6,8 +6,10 @@
 #include <gandiva/projector.h>
 #include <gandiva/tree_expr_builder.h>
 #include <unistd.h>
+
 #include <chrono>
 #include <memory>
+
 #include "codegen/arrow_compute/ext/kernels_ext.h"
 #include "codegen/common/result_iterator.h"
 #include "utils/macros.h"
@@ -329,7 +331,7 @@ class EncodeVisitorImpl : public ExprVisitorImpl {
 };
 
 ////////////////////////// SortArraysToIndicesVisitorImpl ///////////////////////
-/*class SortArraysToIndicesVisitorImpl : public ExprVisitorImpl {
+class SortArraysToIndicesVisitorImpl : public ExprVisitorImpl {
  public:
   SortArraysToIndicesVisitorImpl(ExprVisitor* p, bool nulls_first, bool asc)
       : ExprVisitorImpl(p), nulls_first_(nulls_first), asc_(asc) {}
@@ -343,18 +345,16 @@ class EncodeVisitorImpl : public ExprVisitorImpl {
     if (initialized_) {
       return arrow::Status::OK();
     }
-    RETURN_NOT_OK(
-        extra::SortArraysToIndicesKernel::Make(&p_->ctx_, &kernel_, nulls_first_, asc_));
-    if (p_->param_field_names_.size() != 1) {
-      return arrow::Status::Invalid(
-          "SortArraysToIndicesVisitorImpl expects param_field_name_list only "
-          "contains "
-          "one element.");
+    std::vector<std::shared_ptr<arrow::Field>> field_list;
+    for (auto col_name : p_->param_field_names_) {
+      int col_id;
+      std::shared_ptr<arrow::Field> field;
+      RETURN_NOT_OK(GetColumnIdAndFieldByName(p_->schema_, col_name, &col_id, &field));
+      p_->result_fields_.push_back(field);
+      field_list.push_back(field);
     }
-    auto col_name = p_->param_field_names_[0];
-    std::shared_ptr<arrow::Field> field;
-    RETURN_NOT_OK(GetColumnIdAndFieldByName(p_->schema_, col_name, &col_id_, &field));
-    p_->result_fields_.push_back(field);
+    RETURN_NOT_OK(extra::SortArraysToIndicesKernel::Make(
+        &p_->ctx_, field_list, p_->schema_, &kernel_, nulls_first_, asc_));
     initialized_ = true;
     return arrow::Status::OK();
   }
@@ -362,14 +362,12 @@ class EncodeVisitorImpl : public ExprVisitorImpl {
   arrow::Status Eval() override {
     switch (p_->dependency_result_type_) {
       case ArrowComputeResultType::None: {
-        if (col_id_ >= p_->in_record_batch_->num_columns()) {
-          return arrow::Status::Invalid(
-              "SortArraysToIndicesVisitorImpl Eval col_id is bigger than input "
-              "batch numColumns.");
+        std::vector<std::shared_ptr<arrow::Array>> col_list;
+        for (auto col : p_->in_record_batch_->columns()) {
+          col_list.push_back(col);
         }
-        auto col = p_->in_record_batch_->column(col_id_);
-        RETURN_NOT_OK(kernel_->Evaluate(col));
-        finish_return_type_ = ArrowComputeResultType::Array;
+        RETURN_NOT_OK(kernel_->Evaluate(col_list));
+        finish_return_type_ = ArrowComputeResultType::Batch;
       } break;
       default:
         return arrow::Status::NotImplemented(
@@ -378,30 +376,29 @@ class EncodeVisitorImpl : public ExprVisitorImpl {
     return arrow::Status::OK();
   }
 
-  arrow::Status Finish() override {
-    RETURN_NOT_OK(ExprVisitorImpl::Finish());
+  arrow::Status MakeResultIterator(
+      std::shared_ptr<arrow::Schema> schema,
+      std::shared_ptr<ResultIterator<arrow::RecordBatch>>* out) override {
     switch (finish_return_type_) {
-      case ArrowComputeResultType::Array: {
-        TIME_MICRO_OR_RAISE(p_->elapse_time_, kernel_->Finish(&p_->result_array_));
-        p_->return_type_ = ArrowComputeResultType::Array;
+      case ArrowComputeResultType::Batch: {
+        TIME_MICRO_OR_RAISE(p_->elapse_time_, kernel_->MakeResultIterator(schema, out));
+        p_->return_type_ = ArrowComputeResultType::BatchIterator;
       } break;
-      default: {
-        return arrow::Status::NotImplemented(
-            "SortArraysToIndicesVisitorImpl only support finish_return_type as "
-            "Array.");
-        break;
-      }
+      default:
+        return arrow::Status::Invalid(
+            "SortArraysToIndicesVisitorImpl MakeResultIterator does not support "
+            "dependency type other than Batch.");
     }
     return arrow::Status::OK();
   }
 
  private:
-  int col_id_;
   bool nulls_first_;
   bool asc_;
-};*/
+};
 
-////////////////////////// ConditionedShuffleArrayListVisitorImpl ///////////////////////
+////////////////////////// ConditionedShuffleArrayListVisitorImpl
+//////////////////////////
 class ConditionedShuffleArrayListVisitorImpl : public ExprVisitorImpl {
  public:
   ConditionedShuffleArrayListVisitorImpl(
@@ -472,7 +469,8 @@ class ConditionedShuffleArrayListVisitorImpl : public ExprVisitorImpl {
       } break;
       default:
         return arrow::Status::Invalid(
-            "ConditionedShuffleArrayListVisitorImpl MakeResultIterator does not support "
+            "ConditionedShuffleArrayListVisitorImpl MakeResultIterator does not "
+            "support "
             "dependency type other than Batch.");
     }
     return arrow::Status::OK();

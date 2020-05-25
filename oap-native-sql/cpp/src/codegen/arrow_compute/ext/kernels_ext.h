@@ -6,6 +6,7 @@
 #include <arrow/type_fwd.h>
 #include <gandiva/node.h>
 #include <gandiva/tree_expr_builder.h>
+
 #include "codegen/common/result_iterator.h"
 
 using ArrayList = std::vector<std::shared_ptr<arrow::Array>>;
@@ -240,20 +241,27 @@ class MaxArrayKernel : public KernalBase {
   arrow::compute::FunctionContext* ctx_;
 };
 
-/*class SortArraysToIndicesKernel : public KernalBase {
+class SortArraysToIndicesKernel : public KernalBase {
  public:
   static arrow::Status Make(arrow::compute::FunctionContext* ctx,
+                            std::vector<std::shared_ptr<arrow::Field>> key_field_list,
+                            std::shared_ptr<arrow::Schema> result_schema,
                             std::shared_ptr<KernalBase>* out, bool nulls_first, bool asc);
-  SortArraysToIndicesKernel(arrow::compute::FunctionContext* ctx, bool nulls_first,
-                            bool asc);
-  arrow::Status Evaluate(const std::shared_ptr<arrow::Array>& in) override;
-  arrow::Status Finish(std::shared_ptr<arrow::Array>* out) override;
+  SortArraysToIndicesKernel(arrow::compute::FunctionContext* ctx,
+                            std::vector<std::shared_ptr<arrow::Field>> key_field_list,
+                            std::shared_ptr<arrow::Schema> result_schema,
+                            bool nulls_first, bool asc);
+  arrow::Status Evaluate(const ArrayList& in) override;
+  arrow::Status MakeResultIterator(
+      std::shared_ptr<arrow::Schema> schema,
+      std::shared_ptr<ResultIterator<arrow::RecordBatch>>* out) override;
+
+  class Impl;
 
  private:
-  class Impl;
   std::unique_ptr<Impl> impl_;
   arrow::compute::FunctionContext* ctx_;
-};*/
+};
 
 /*class UniqueArrayKernel : public KernalBase {
  public:

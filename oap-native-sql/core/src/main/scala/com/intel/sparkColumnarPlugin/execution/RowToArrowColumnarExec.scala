@@ -2,6 +2,7 @@ package com.intel.sparkColumnarPlugin.execution
 
 import com.intel.sparkColumnarPlugin.vectorized.ArrowWritableColumnVector
 
+import java.util.concurrent.TimeUnit._
 import scala.collection.JavaConverters._
 
 import org.apache.spark.{broadcast, TaskContext}
@@ -236,12 +237,14 @@ case class RowToArrowColumnarExec(child: SparkPlan) extends UnaryExecNode {
 
   override lazy val metrics: Map[String, SQLMetric] = Map(
     "numInputRows" -> SQLMetrics.createMetric(sparkContext, "number of input rows"),
-    "numOutputBatches" -> SQLMetrics.createMetric(sparkContext, "number of output batches")
+    "numOutputBatches" -> SQLMetrics.createMetric(sparkContext, "number of output batches"),
+    "processTime" -> SQLMetrics.createTimingMetric(sparkContext, "time in convert process")
   )
 
   override def doExecuteColumnar(): RDD[ColumnarBatch] = {
     val numInputRows = longMetric("numInputRows")
     val numOutputBatches = longMetric("numOutputBatches")
+    val processTime = longMetric("processTime")
     // Instead of creating a new config we are reusing columnBatchSize. In the future if we do
     // combine with some of the Arrow conversion tools we will need to unify some of the configs.
     val numRows = conf.columnBatchSize
@@ -253,6 +256,7 @@ case class RowToArrowColumnarExec(child: SparkPlan) extends UnaryExecNode {
         new Iterator[ColumnarBatch] {
           private val converters = new RowToColumnConverter(localSchema)
           private var last_cb: ColumnarBatch = null
+          private var elapse: Long = 0
 
           override def hasNext: Boolean = {
             if (last_cb != null) {
@@ -268,9 +272,12 @@ case class RowToArrowColumnarExec(child: SparkPlan) extends UnaryExecNode {
             var rowCount = 0
             while (rowCount < numRows && rowIterator.hasNext) {
               val row = rowIterator.next()
+              val start = System.nanoTime()
               converters.convert(row, vectors.toArray)
+              elapse += System.nanoTime() - start
               rowCount += 1
             }
+            processTime.set(NANOSECONDS.toMillis(elapse))
             numInputRows += rowCount
             numOutputBatches += 1
             last_cb = new ColumnarBatch(vectors.toArray, rowCount)

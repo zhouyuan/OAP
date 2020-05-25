@@ -220,8 +220,6 @@ class ArrowComputeCodeGenerator : public CodeGenerator {
     for (auto visitor : visitor_list_) {
       TIME_MICRO_OR_RAISE(finish_elapse_time_,
                           visitor->MakeResultIterator(arrow::schema(ret_types_), out));
-      visitor->PrintMetrics();
-      std::cout << std::endl;
     }
     return arrow::Status::OK();
   }

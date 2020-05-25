@@ -249,55 +249,6 @@ arrow::Status SplitArrayListWithActionKernel::MakeResultIterator(
   return impl_->MakeResultIterator(schema, out);
 }
 
-///////////////  SortArraysToIndices  ////////////////
-/*class SortArraysToIndicesKernel::Impl {
- public:
-  Impl(arrow::compute::FunctionContext* ctx, bool nulls_first, bool asc)
-      : ctx_(ctx), nulls_first_(nulls_first), asc_(asc) {}
-  ~Impl() {}
-  arrow::Status Evaluate(const std::shared_ptr<arrow::Array>& in) {
-    if (in->length() == 0) {
-      return arrow::Status::OK();
-    }
-    array_cache_.push_back(in);
-    return arrow::Status::OK();
-  }
-
-  arrow::Status Finish(std::shared_ptr<arrow::Array>* out) {
-    RETURN_NOT_OK(
-        arrow::compute::SortArraysToIndices(ctx_, array_cache_, out, nulls_first_, asc_));
-    return arrow::Status::OK();
-  }
-
- private:
-  arrow::compute::FunctionContext* ctx_;
-  bool nulls_first_;
-  bool asc_;
-  std::vector<std::shared_ptr<arrow::Array>> array_cache_;
-};
-
-arrow::Status SortArraysToIndicesKernel::Make(arrow::compute::FunctionContext* ctx,
-                                              std::shared_ptr<KernalBase>* out,
-                                              bool nulls_first, bool asc) {
-  *out = std::make_shared<SortArraysToIndicesKernel>(ctx, nulls_first, asc);
-  return arrow::Status::OK();
-}
-
-SortArraysToIndicesKernel::SortArraysToIndicesKernel(arrow::compute::FunctionContext* ctx,
-                                                     bool nulls_first, bool asc) {
-  impl_.reset(new Impl(ctx, nulls_first, asc));
-  kernel_name_ = "SortArraysToIndicesKernelKernel";
-}
-
-arrow::Status SortArraysToIndicesKernel::Evaluate(
-    const std::shared_ptr<arrow::Array>& in) {
-  return impl_->Evaluate(in);
-}
-
-arrow::Status SortArraysToIndicesKernel::Finish(std::shared_ptr<arrow::Array>* out) {
-  return impl_->Finish(out);
-}
-*/
 ///////////////  UniqueArray  ////////////////
 /*class UniqueArrayKernel::Impl {
  public:
