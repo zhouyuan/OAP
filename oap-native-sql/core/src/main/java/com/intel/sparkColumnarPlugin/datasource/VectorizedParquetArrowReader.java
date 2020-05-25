@@ -96,8 +96,9 @@ public class VectorizedParquetArrowReader extends VectorizedParquetRecordReader 
 
     final int[] rowGroupIndices = filterRowGroups(inputSplit, configuration);
     String uriPath = this.path;
+    String kerb_ticket = System.getenv("hdfs_token");
     if (uriPath.contains("hdfs")) {
-      uriPath = this.path + "?user=root&replication=1";
+      uriPath = this.path + "?user=root&replication=1&hdfs_token=" + kerb_ticket;
     }
     ParquetInputSplit split = (ParquetInputSplit)inputSplit;
     LOG.info("ParquetReader uri path is " + uriPath + ", rowGroupIndices is " + Arrays.toString(rowGroupIndices) + ", column_indices is " + Arrays.toString(column_indices));
