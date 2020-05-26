@@ -11,6 +11,7 @@
 #include <arrow/type_traits.h>
 #include <iostream>
 #include <sstream>
+#include "sparsehash/dense_hash_map"
 
 #include "codegen/arrow_compute/ext/array_item_index.h"
 #include "codegen/arrow_compute/ext/kernels_ext.h"
@@ -20,6 +21,8 @@
 #include <chrono>
 #include <iostream>
 #include <unordered_map>
+
+using google::dense_hash_map;
 
 using namespace sparkcolumnarplugin::codegen::arrowcompute::extra;
 
@@ -49,6 +52,8 @@ public:
     // Create Hash Kernel
     auto type_list = {arrow::int64()};
     HashAggrArrayKernel::Make(ctx_, type_list, &hash_kernel_);
+    memo_index_to_arrayid_.set_empty_key(0);
+    memo_index_to_arrayid_.resize(3500001);
   }
   ~TypedProberImpl() {}
 
@@ -162,8 +167,7 @@ private:
   std::shared_ptr<KernalBase> hash_kernel_;
   // std::shared_ptr<arrow::internal::ScalarMemoTable<int64_t>> hash_table_;
   // std::vector<std::vector<ArrayItemIndex>> memo_index_to_arrayid_;
-  std::unordered_map<int64_t, std::vector<ArrayItemIndex>>
-      memo_index_to_arrayid_;
+  dense_hash_map<int64_t, std::vector<ArrayItemIndex>> memo_index_to_arrayid_;
   std::vector<ArrayItemIndex> null_arrayid_;
 
   using DataType_0_0 = typename arrow::Int64Type;
@@ -192,8 +196,7 @@ private:
         arrow::compute::FunctionContext *ctx,
         std::shared_ptr<arrow::Schema> schema,
         std::shared_ptr<KernalBase> hash_kernel,
-        std::unordered_map<int64_t, std::vector<ArrayItemIndex>>
-            *memo_index_to_arrayid,
+        dense_hash_map<int64_t, std::vector<ArrayItemIndex>> *memo_index_to_arrayid,
         std::vector<ArrayItemIndex> *null_arrayid,
         //// codegen ////
         const std::vector<std::shared_ptr<ArrayType_0_0>> &cached_0_0,
@@ -298,8 +301,7 @@ private:
     std::shared_ptr<KernalBase> hash_kernel_;
     //  std::shared_ptr<arrow::internal::ScalarMemoTable<int64_t>> hash_table_;
     //  std::vector<std::vector<ArrayItemIndex>> *memo_index_to_arrayid_;
-    std::unordered_map<int64_t, std::vector<ArrayItemIndex>>
-        *memo_index_to_arrayid_;
+    dense_hash_map<int64_t, std::vector<ArrayItemIndex>> *memo_index_to_arrayid_;
     std::vector<ArrayItemIndex> *null_arrayid_;
 
     using DataType_0_0 = typename arrow::Int64Type;
