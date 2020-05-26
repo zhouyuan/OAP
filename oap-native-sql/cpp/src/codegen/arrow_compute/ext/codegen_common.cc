@@ -38,13 +38,13 @@ public:
     return arrow::Status::NotImplemented("ResultIterator abstract Next function");
   }
   virtual arrow::Status
-  Process(std::vector<std::shared_ptr<arrow::Array>> in,
+  Process(const std::vector<std::shared_ptr<arrow::Array>> &in,
           std::shared_ptr<T> *out,
           const std::shared_ptr<arrow::Array> &selection = nullptr) {
     return arrow::Status::NotImplemented("ResultIterator abstract Process function");
   }
   virtual arrow::Status
-  ProcessAndCacheOne(std::vector<std::shared_ptr<arrow::Array>> in,
+  ProcessAndCacheOne(const std::vector<std::shared_ptr<arrow::Array>> &in,
                      const std::shared_ptr<arrow::Array> &selection = nullptr) {
     return arrow::Status::NotImplemented(
         "ResultIterator abstract ProcessAndCacheOne function");
