@@ -120,10 +120,10 @@ object ConverterUtils extends Logging {
     }
   }
 
-  def getResultAttrFromExpr(fieldExpr: Expression, name: String = "None"): AttributeReference = {
+  def getResultAttrFromExpr(fieldExpr: Expression, name: String = "None", dataType: Option[DataType]=None): AttributeReference = {
     fieldExpr match {
       case a: Cast =>
-        getResultAttrFromExpr(a.child, name)
+        getResultAttrFromExpr(a.child, name, Some(a.dataType))
       case a: AttributeReference =>
         if (name != "None") {
           new AttributeReference(name, a.dataType, a.nullable)()
@@ -153,7 +153,12 @@ object ConverterUtils extends Logging {
         } else {
           new Alias(other, "res")()
         }
-        a.toAttribute.asInstanceOf[AttributeReference]
+        val tmpAttr = a.toAttribute.asInstanceOf[AttributeReference]
+        if (dataType.isDefined) {
+           new AttributeReference(tmpAttr.name, dataType.getOrElse(null), tmpAttr.nullable)()
+        } else {
+           tmpAttr
+        }
     }
   }
 
