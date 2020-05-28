@@ -340,6 +340,45 @@ extern "C" void MakeCodeGen(arrow::compute::FunctionContext* ctx,
     }
     return ss.str();
   }
+
+  std::string GetExtractFunction(std::vector<int> sort_key_index_list) {
+    std::stringstream ss;
+    ss << "auto comp = [this](ArrayItemIndex x, ArrayItemIndex y) {"
+       << GetExtractFunction_(0, sort_key_index_list) << "};";
+    return ss.str();
+  }
+
+  std::string GetExtractFunction_(int cur_key_index, std::vector<int> sort_key_index_list) {
+    std::string comp_str;
+    auto cur_key_id = sort_key_index_list[cur_key_index];
+    //FIXME: asc only
+    std::stringstream ss;
+    ss << "return cached_" << cur_key_id << "_[x.array_id]->GetView(x.id);\n";
+    return ss.str();
+
+    //if (asc_) {
+    //  std::stringstream ss;
+    //  ss << "return cached_" << cur_key_id << "_[x.array_id]->GetView(x.id) < cached_"
+    //     << cur_key_id << "_[y.array_id]->GetView(y.id);\n";
+    //  comp_str = ss.str();
+    //} else {
+    //  std::stringstream ss;
+    //  ss << "return cached_" << cur_key_id << "_[x.array_id]->GetView(x.id) > cached_"
+    //     << cur_key_id << "_[y.array_id]->GetView(y.id);\n";
+    //  comp_str = ss.str();
+    //}
+    //if ((cur_key_index + 1) < sort_key_index_list.size()) {
+    //  std::stringstream ss;
+    //  ss << "if (cached_" << cur_key_id << "_[x.array_id]->GetView(x.id) == cached_"
+    //     << cur_key_id << "_[y.array_id]->GetView(y.id)) {"
+    //     << GetCompFunction_(cur_key_index + 1, sort_key_index_list) << "} else { "
+    //     << comp_str << "}";
+    //  return ss.str();
+    //} else {
+    //  return comp_str;
+    //}
+  }
+
   std::string GetCompFunction(std::vector<int> sort_key_index_list) {
     std::stringstream ss;
     ss << "auto comp = [this](ArrayItemIndex x, ArrayItemIndex y) {"
@@ -396,11 +435,11 @@ extern "C" void MakeCodeGen(arrow::compute::FunctionContext* ctx,
   }
   std::string GetSortFunction() {
     if (nulls_first_) {
-      return "std::sort(indices_begin + nulls_total_, indices_begin + "
+      return "ska_sort(indices_begin + nulls_total_, indices_begin + "
              "items_total_, "
              "comp);";
     } else {
-      return "std::sort(indices_begin, indices_begin + items_total_ - "
+      return "ska_sort(indices_begin, indices_begin + items_total_ - "
              "nulls_total_, comp);";
     }
   }

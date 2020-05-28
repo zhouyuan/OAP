@@ -18,6 +18,7 @@ namespace extra {
 
 std::string BaseCodes() {
   return R"(
+#include <thidparty/ska_sort/ska_sort.hpp>
 #include <arrow/array.h>
 #include <arrow/array/builder_binary.h>
 #include <arrow/array/builder_primitive.h>
