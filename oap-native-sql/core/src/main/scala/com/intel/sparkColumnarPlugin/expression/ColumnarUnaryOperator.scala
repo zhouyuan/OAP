@@ -166,10 +166,7 @@ class ColumnarCast(child: Expression, datatype: DataType, timeZoneId: Option[Str
         TreeBuilder.makeFunction("castDATE", Lists.newArrayList(child_node), resultType)
       (funcNode, resultType)
     }  else if (dataType == DecimalType) {
-      //TODO: fix with precision
-      val funcNode =
-        TreeBuilder.makeFunction("castDECIMAL", Lists.newArrayList(child_node), resultType)
-      (funcNode, resultType)
+      throw new UnsupportedOperationException(s"not currently supported: ${dataType}.")
     } else {
       throw new UnsupportedOperationException(s"not currently supported: ${dataType}.")
     }
