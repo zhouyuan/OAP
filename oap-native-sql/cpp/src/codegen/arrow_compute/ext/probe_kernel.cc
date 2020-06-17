@@ -709,7 +709,7 @@ class ConditionedProbeArraysKernel::Impl {
       ss << "std::shared_ptr<arrow::Array> hash_in;" << std::endl;
       ss << "RETURN_NOT_OK(hash_kernel_->Evaluate(concat_kernel_arr_list, &hash_in));"
          << std::endl;
-      ss << "auto typed_array = std::dynamic_pointer_cast<arrow::Int64Array>(hash_in);"
+      ss << "auto typed_array = std::dynamic_pointer_cast<arrow::Int32Array>(hash_in);"
          << std::endl;
     } else {
       ss << "auto typed_array = std::dynamic_pointer_cast<arrow::" << data_type << ">(in["

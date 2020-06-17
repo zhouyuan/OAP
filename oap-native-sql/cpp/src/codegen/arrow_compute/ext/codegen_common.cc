@@ -224,7 +224,7 @@ arrow::Status CompileCodes(std::string codes, std::string signature) {
   // compile the code
   std::string cmd = env_gcc + " -std=c++11 -Wno-deprecated-declarations " + arrow_header +
                     arrow_lib + nativesql_header + nativesql_lib + cppfile + " -o " +
-                    libfile + " -O3 -shared -fPIC -larrow -lspark_columnar_jni 2> " +
+                    libfile + " -O3 -march=native -shared -fPIC -larrow -lspark_columnar_jni 2> " +
                     logfile;
   int ret = system(cmd.c_str());
   if (WEXITSTATUS(ret) != EXIT_SUCCESS) {
