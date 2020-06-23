@@ -96,7 +96,7 @@ public class JniUtils {
           JniUtils.class.getClassLoader().getResource("include").openConnection();
       if (urlConnection instanceof JarURLConnection) {
         final JarFile jarFile = ((JarURLConnection) urlConnection).getJarFile();
-        copyResourcesToDirectory(jarFile, folderToLoad, tmp_dir + "/" + folderToLoad);
+        copyResourcesToDirectory(jarFile, folderToLoad, tmp_dir + "/" + "nativesql_include");
       } else {
         throw new IOException(urlConnection.toString() + " is not JarUrlConnection");
       }

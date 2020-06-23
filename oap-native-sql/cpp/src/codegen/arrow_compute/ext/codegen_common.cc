@@ -230,7 +230,7 @@ arrow::Status CompileCodes(std::string codes, std::string signature) {
   const char* env_arrow_dir = std::getenv("LIBARROW_DIR");
   std::string arrow_header;
   std::string arrow_lib;
-  std::string nativesql_header = " -I" + GetTempPath() + "/include/ ";
+  std::string nativesql_header = " -I" + GetTempPath() + "/nativesql_include/ ";
   std::string nativesql_lib = " -L" + GetTempPath() + " ";
   if (env_arrow_dir != nullptr) {
     arrow_header = " -I" + std::string(env_arrow_dir) + "/include ";
