@@ -229,16 +229,18 @@ arrow::Status CompileCodes(std::string codes, std::string signature) {
 
   const char* env_arrow_dir = std::getenv("LIBARROW_DIR");
   std::string arrow_header;
-  std::string arrow_lib;
+  std::string arrow_lib, arrow_lib2;
   std::string nativesql_header = " -I" + GetTempPath() + "/nativesql_include/ ";
   std::string nativesql_lib = " -L" + GetTempPath() + " ";
   if (env_arrow_dir != nullptr) {
     arrow_header = " -I" + std::string(env_arrow_dir) + "/include ";
     arrow_lib = " -L" + std::string(env_arrow_dir) + "/lib64 ";
+    // incase there's a different location for libarrow.so
+    arrow_lib2 = " -L" + std::string(env_arrow_dir) + "/lib ";
   }
   // compile the code
   std::string cmd = env_gcc + " -std=c++14 -Wno-deprecated-declarations " + arrow_header +
-                    arrow_lib + nativesql_header + nativesql_lib + cppfile + " -o " +
+                    arrow_lib + arrow_lib2 + nativesql_header + nativesql_lib + cppfile + " -o " +
                     libfile + " -O3 -march=native -shared -fPIC -larrow -lspark_columnar_jni 2> " +
                     logfile;
   //#ifdef DEBUG
@@ -248,7 +250,7 @@ arrow::Status CompileCodes(std::string codes, std::string signature) {
   if (WEXITSTATUS(ret) != EXIT_SUCCESS) {
     std::cout << "compilation failed, see " << logfile << std::endl;
     std::cout << cmd << std::endl;
-    cmd = "ls " + GetTempPath() + "; cat " + logfile;
+    cmd = "ls -R -l " + GetTempPath() + "; cat " + logfile;
     system(cmd.c_str());
     exit(EXIT_FAILURE);
   }
