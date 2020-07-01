@@ -4,7 +4,7 @@ A Native Engine for Spark SQL with vectorze SIMD optimizations
 
 ## Introduction
 
-![Overview](/oap-native-sql/resource/Native_SQL_Engine_Intro.jpg)
+![Overview](/oap-native-sql/resource/nativesql_arch.png)
 
 Spark SQL works very well with structured row-based data. It used WholeStageCodeGen to improve the performance by Java JIT code. However Java JIT is usually not working very well on utilizing latest SIMD instructions, espeically under complicated queries. [Apache Arrow](https://arrow.apache.org/) provided CPU-cahce friendly columnar in-memory layout, its SIMD optimized kernels and LLVM based SQL engine Gandiva are also very efficient. Native SQL Engine used these technoligies and brought better performance to Spark SQL.
 
