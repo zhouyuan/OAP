@@ -7,7 +7,7 @@
   <properties>
     <scala.version>2.12.10</scala.version>
     <scala.binary.version>2.12</scala.binary.version>
-    <spark.version>3.1.0-SNAPSHOT</spark.version>
+    <spark.version>3.0.0</spark.version>
     <arrow.version>0.17.0</arrow.version>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
@@ -19,10 +19,6 @@
       <name>Scala-Tools Maven2 Repository</name>
       <url>http://scala-tools.org/repo-releases</url>
     </repository>
-    <repository>
-      <id>ossrh</id>
-      <url>https://oss.sonatype.org/content/repositories/snapshots</url>
-    </repository>
   </repositories>
 
   <pluginRepositories>
@@ -30,11 +26,6 @@
       <id>scala-tools.org</id>
       <name>Scala-Tools Maven2 Repository</name>
       <url>http://scala-tools.org/repo-releases</url>
-    </pluginRepository>
-    <pluginRepository>
-      <id>ossrh</id>
-      <name>ossrh Repository</name>
-      <url>https://oss.sonatype.org/content/repositories/snapshots</url>
     </pluginRepository>
   </pluginRepositories>
 
@@ -70,7 +61,7 @@
       <scope>provided</scope>
     </dependency>
     <dependency>
-      <groupId>com.intel.spark</groupId>
+      <groupId>org.apache.spark</groupId>
       <artifactId>spark-sql_2.12</artifactId>
       <version>${spark.version}</version>
       <exclusions>
@@ -88,21 +79,21 @@
       <scope>test</scope>
     </dependency>
     <dependency>
-      <groupId>com.intel.spark</groupId>
+      <groupId>org.apache.spark</groupId>
       <artifactId>spark-core_2.12</artifactId>
       <version>${spark.version}</version>
       <type>test-jar</type>
       <scope>test</scope>
     </dependency>
     <dependency>
-      <groupId>com.intel.spark</groupId>
+      <groupId>org.apache.spark</groupId>
       <artifactId>spark-catalyst_2.12</artifactId>
       <version>${spark.version}</version>
       <type>test-jar</type>
       <scope>test</scope>
     </dependency>
     <dependency>
-      <groupId>com.intel.spark</groupId>
+      <groupId>org.apache.spark</groupId>
       <artifactId>spark-sql_2.12</artifactId>
       <version>${spark.version}</version>
       <type>test-jar</type>
