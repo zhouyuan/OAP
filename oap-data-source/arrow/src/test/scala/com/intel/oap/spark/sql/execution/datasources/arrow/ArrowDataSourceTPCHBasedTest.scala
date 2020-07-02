@@ -56,7 +56,7 @@ class ArrowDataSourceTPCHBasedTest extends QueryTest with SharedSparkSession {
     spark.sql("describe lineitem").show()
   }
 
-  test("tpch part - special characters in path") {
+  ignore("tpch part - special characters in path") {
     val frame = spark.read
       .option(ArrowOptions.KEY_ORIGINAL_FORMAT, "parquet")
       .option(ArrowOptions.KEY_FILESYSTEM, "hdfs")
