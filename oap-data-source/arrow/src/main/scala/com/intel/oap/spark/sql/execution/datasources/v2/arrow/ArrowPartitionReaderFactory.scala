@@ -44,7 +44,7 @@ case class ArrowPartitionReaderFactory(
     options: ArrowOptions)
     extends FilePartitionReaderFactory {
 
-  private val batchSize = 4096
+  private val batchSize = sqlConf.parquetVectorizedReaderBatchSize
   private val enableFilterPushDown: Boolean = sqlConf.arrowFilterPushDown
 
   override def supportColumnarReads(partition: InputPartition): Boolean = true
