@@ -2,7 +2,7 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>com.intel.oap</groupId>
   <artifactId>spark-arrow-datasource</artifactId>
-  <version>0.1.0-SNAPSHOT</version>
+  <version>0.9.0</version>
   <inceptionYear>2008</inceptionYear>
   <properties>
     <scala.version>2.12.10</scala.version>
