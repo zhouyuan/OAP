@@ -104,10 +104,12 @@ object ColumnarExpressionConverter extends Logging {
 
       logInfo(s"col_branches: $colBranches")
       logInfo(s"col_else: $colElseValue")
+      val rename = if (expIdx == -1) false else true
       ColumnarCaseWhenOperator.create(
         colBranches,
         colElseValue,
-        expr)
+        expr,
+        rename)
     case c: Coalesce =>
       check_if_no_calculation = false
       logInfo(s"${expr.getClass} ${expr} is supported, no_cal is $check_if_no_calculation.")

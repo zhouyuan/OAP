@@ -35,7 +35,11 @@ import scala.collection.mutable.ListBuffer
 /**
  * A version of substring that supports columnar processing for utf8.
  */
-class ColumnarCaseWhen(branches: Seq[(Expression, Expression)], elseValue: Option[Expression], original: Expression)
+class ColumnarCaseWhen(
+  branches: Seq[(Expression, Expression)], 
+  elseValue: Option[Expression], 
+  original: Expression, 
+  rename: Boolean)
     extends CaseWhen(branches: Seq[(Expression, Expression)] ,elseValue: Option[Expression])
     with ColumnarExpression
     with Logging {
@@ -49,16 +53,14 @@ class ColumnarCaseWhen(branches: Seq[(Expression, Expression)], elseValue: Optio
 
     val exprs = branches.flatMap(b => b._1 :: b._2 :: Nil) ++ elseValue
     val exprList = { exprs.filter(expr => !expr.isInstanceOf[Literal]) }
-    val inputAttributes = exprList.toList.zipWithIndex.map{case (expr, i) =>
-      ConverterUtils.getResultAttrFromExpr(expr)
-    }
+    val inputAttributes = exprList.toList.map(expr => ConverterUtils.getResultAttrFromExpr(expr))
 
     var colCondExpr = branches(i)._1
     val (cond_node, condType): (TreeNode, ArrowType) =
       colCondExpr.asInstanceOf[ColumnarExpression].doColumnarCodeGen(args)
 
     var colRetExpr = branches(i)._2
-    if (colRetExpr.isInstanceOf[AttributeReference]) {
+    if (rename && colRetExpr.isInstanceOf[AttributeReference]) {
       colRetExpr = new ColumnarBoundReference(inputAttributes.indexOf(colRetExpr),
                                               colRetExpr.dataType, colRetExpr.nullable)
     }
@@ -69,7 +71,7 @@ class ColumnarCaseWhen(branches: Seq[(Expression, Expression)], elseValue: Optio
     if (elseValue.isDefined) {
       val elseValueExpr = elseValue.getOrElse(null)
       var colElseValueExpr = ColumnarExpressionConverter.replaceWithColumnarExpression(elseValueExpr)
-      if (colElseValueExpr.isInstanceOf[AttributeReference]) {
+      if (rename && colElseValueExpr.isInstanceOf[AttributeReference]) {
         colElseValueExpr = new ColumnarBoundReference(inputAttributes.indexOf(colElseValueExpr),
                                                       colElseValueExpr.dataType, colElseValueExpr.nullable)
       }
@@ -87,9 +89,9 @@ class ColumnarCaseWhen(branches: Seq[(Expression, Expression)], elseValue: Optio
 object ColumnarCaseWhenOperator {
 
   def create(branches: Seq[(Expression, Expression)], elseValue: Option[Expression],
-             original: Expression): Expression = original match {
+             original: Expression, rename: Boolean = true): Expression = original match {
     case i: CaseWhen =>
-      new ColumnarCaseWhen(branches, elseValue, i)
+      new ColumnarCaseWhen(branches, elseValue, i, rename)
     case other =>
       throw new UnsupportedOperationException(s"not currently supported: $other.")
   }
