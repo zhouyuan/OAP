@@ -21,7 +21,7 @@ jobs:
       - ./install_memkind.sh
       script:
       - cd ${TRAVIS_BUILD_DIR}
-      - mvn clean -q -Ppersistent-memory -Pvmemcache test
+      - mvn clean test -pl oap-cache/oap -q -Ppersistent-memory  -Pvmemcache  -am
       
     - name: oap-native-sql
       dist: bionic
@@ -35,9 +35,9 @@ jobs:
       - export | grep JAVA_HOME
       install:
       - # Download spark 3.0
-      - "[ -f spark ] || mkdir spark && cd spark && wget http://archive.apache.org/dist/spark/spark-3.0.0-preview2/spark-3.0.0-preview2-bin-hadoop2.7.tgz && cd .."
-      - "tar -xf ./spark/spark-3.0.0-preview2-bin-hadoop2.7.tgz"
-      - "export SPARK_HOME=`pwd`/spark-3.0.0-preview2-bin-hadoop2.7"
+      - "[ -f spark ] || mkdir spark && cd spark && wget http://archive.apache.org/dist/spark/spark-3.0.0/spark-3.0.0-bin-hadoop2.7.tgz && cd .."
+      - "tar -xf ./spark/spark-3.0.0-bin-hadoop2.7.tgz"
+      - "export SPARK_HOME=`pwd`/spark-3.0.0-bin-hadoop2.7"
       before_script:
       - cd /tmp
       - git clone https://github.com/intel-bigdata/arrow.git
@@ -49,10 +49,7 @@ jobs:
       - cd ../../java
       - mvn clean install -q -P arrow-jni -am -Darrow.cpp.build.dir=/tmp/arrow/cpp/build/release/ -DskipTests -Dcheckstyle.skip
       script:
-      - cd ${TRAVIS_BUILD_DIR}/oap-native-sql/
-      - cd cpp && mkdir build && cd build
-      - cmake .. && make
-      - cd ../../core
+      - cd ${TRAVIS_BUILD_DIR}/oap-native-sql/core
       - mvn clean -q package -DskipTests #skip core tests
       - cd ${TRAVIS_BUILD_DIR}/oap-data-source/arrow
       - mvn clean -q test
