@@ -17,6 +17,7 @@
 
 package com.intel.sparkColumnarPlugin.execution
 
+import com.intel.sparkColumnarPlugin.ColumnarPluginConfig
 import com.intel.sparkColumnarPlugin.expression._
 import com.intel.sparkColumnarPlugin.vectorized._
 
@@ -98,26 +99,53 @@ class ColumnarHashAggregateExec(
         // so return an empty iterator.
         Iterator.empty
       } else {
-        val aggregation = ColumnarAggregation.create(
-          partIndex,
-          groupingExpressions,
-          child.output,
-          aggregateExpressions,
-          aggregateAttributes,
-          resultExpressions,
-          output,
-          numInputBatches,
-          numOutputBatches,
-          numOutputRows,
-          aggTime,
-          elapseTime,
-          sparkConf)
-        TaskContext
-          .get()
-          .addTaskCompletionListener[Unit](_ => {
-            aggregation.close()
-          })
-        new CloseableColumnBatchIterator(aggregation.createIterator(iter))
+        if (ColumnarPluginConfig
+              .getConf(sparkConf)
+              .enableCodegenHashAggregate && groupingExpressions.nonEmpty) {
+          val aggregation =
+            ColumnarGroupbyHashAggregation.create(
+              partIndex,
+              groupingExpressions,
+              child.output,
+              aggregateExpressions,
+              aggregateAttributes,
+              resultExpressions,
+              output,
+              numInputBatches,
+              numOutputBatches,
+              numOutputRows,
+              aggTime,
+              elapseTime,
+              sparkConf)
+          TaskContext
+            .get()
+            .addTaskCompletionListener[Unit](_ => {
+              aggregation.close()
+            })
+          new CloseableColumnBatchIterator(aggregation.createIterator(iter))
+        } else {
+          val aggregation =
+            ColumnarAggregation.create(
+              partIndex,
+              groupingExpressions,
+              child.output,
+              aggregateExpressions,
+              aggregateAttributes,
+              resultExpressions,
+              output,
+              numInputBatches,
+              numOutputBatches,
+              numOutputRows,
+              aggTime,
+              elapseTime,
+              sparkConf)
+          TaskContext
+            .get()
+            .addTaskCompletionListener[Unit](_ => {
+              aggregation.close()
+            })
+          new CloseableColumnBatchIterator(aggregation.createIterator(iter))
+        }
       }
       res
     }
