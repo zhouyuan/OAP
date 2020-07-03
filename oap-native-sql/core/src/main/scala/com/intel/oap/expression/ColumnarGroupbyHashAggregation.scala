@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-package com.intel.sparkColumnarPlugin.expression
+package com.intel.oap.expression
 
 import io.netty.buffer.ArrowBuf
 import java.util.ArrayList
@@ -23,11 +23,11 @@ import java.util.Collections
 import java.util.concurrent.TimeUnit._
 import util.control.Breaks._
 
-import com.intel.sparkColumnarPlugin.ColumnarPluginConfig
-import com.intel.sparkColumnarPlugin.vectorized.ArrowWritableColumnVector
+import com.intel.oap.ColumnarPluginConfig
+import com.intel.oap.vectorized.ArrowWritableColumnVector
 import org.apache.spark.sql.util.ArrowUtils
-import com.intel.sparkColumnarPlugin.vectorized.ExpressionEvaluator
-import com.intel.sparkColumnarPlugin.vectorized.BatchIterator
+import com.intel.oap.vectorized.ExpressionEvaluator
+import com.intel.oap.vectorized.BatchIterator
 
 import com.google.common.collect.Lists
 import org.apache.hadoop.mapreduce.TaskAttemptID
