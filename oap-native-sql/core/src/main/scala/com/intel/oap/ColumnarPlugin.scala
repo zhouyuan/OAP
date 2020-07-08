@@ -28,7 +28,7 @@ import org.apache.spark.sql.execution.{RowToColumnarExec, ColumnarToRowExec}
 import org.apache.spark.sql.execution.aggregate.HashAggregateExec
 import org.apache.spark.sql.execution.datasources.v2.BatchScanExec
 import org.apache.spark.sql.execution.exchange.ShuffleExchangeExec
-import org.apache.spark.sql.execution.joins.ShuffledHashJoinExec
+import org.apache.spark.sql.execution.joins._
 import org.apache.spark.sql.{SparkSession, SparkSessionExtensions}
 
 case class ColumnarPreOverrides(conf: SparkConf) extends Rule[SparkPlan] {
@@ -41,6 +41,10 @@ case class ColumnarPreOverrides(conf: SparkConf) extends Rule[SparkPlan] {
     case plan: ProjectExec =>
       //new ColumnarProjectExec(plan.projectList, replaceWithColumnarPlan(plan.child))
       val columnarPlan = replaceWithColumnarPlan(plan.child)
+      if ((columnarConf.enableFallbackProj) && (columnarPlan.isInstanceOf[BroadcastHashJoinExec] || columnarPlan.isInstanceOf[SortMergeJoinExec])) {
+        val children = plan.children.map(replaceWithColumnarPlan)
+        plan.withNewChildren(children)
+      } else {
       val res = if (!columnarPlan.isInstanceOf[ColumnarConditionProjectExec]) {
         new ColumnarConditionProjectExec(null, plan.projectList, columnarPlan)
       } else {
@@ -49,6 +53,7 @@ case class ColumnarPreOverrides(conf: SparkConf) extends Rule[SparkPlan] {
       }
       logDebug(s"Columnar Processing for ${plan.getClass} is currently supported.")
       res
+      }
     case plan: FilterExec =>
       val child = replaceWithColumnarPlan(plan.child)
       logDebug(s"Columnar Processing for ${plan.getClass} is currently supported.")

@@ -20,6 +20,8 @@ package com.intel.oap
 import org.apache.spark.SparkConf
 
 class ColumnarPluginConfig(conf: SparkConf) {
+  val enableFallbackProj: Boolean =
+    conf.getBoolean("spark.sql.oap.fallback_proj", defaultValue = false)
   val enableColumnarSort: Boolean =
     conf.getBoolean("spark.sql.columnar.sort", defaultValue = false)
   val enableCodegenHashAggregate: Boolean =
