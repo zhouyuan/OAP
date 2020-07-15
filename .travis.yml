@@ -51,6 +51,8 @@ jobs:
       script:
       - cd ${TRAVIS_BUILD_DIR}/oap-native-sql/core
       - mvn clean -q package -DskipTests #skip core tests
+      - cd ../cpp/build/src
+      - ctest -R
       - cd ${TRAVIS_BUILD_DIR}/oap-data-source/arrow
       - mvn clean -q test
     - name: oap-shuffle-remote-shuffle
