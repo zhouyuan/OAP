@@ -75,7 +75,6 @@ TEST(TestArrowComputeMergeJoin, JoinTestUsingInnerJoin) {
 
   std::vector<std::string> input_data_string = {
       "[1, 3, 5, 7, 9, 10]", "[1, 3, 5, 7, 9, 10]", "[1, 3, 5, 7, 9, 10]"};
-      //"[10, 3, 1, 2, 3, 1]", "[10, 3, 1, 2, 13, 11]", "[10, 3, 1, 2, 13, 11]"};
   MakeInputBatch(input_data_string, schema_table_0, &input_batch);
   table_0.push_back(input_batch);
 

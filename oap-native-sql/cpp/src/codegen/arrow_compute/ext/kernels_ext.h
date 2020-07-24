@@ -339,6 +339,7 @@ class ConditionedJoinArraysKernel : public KernalBase {
   arrow::Status MakeResultIterator(
       std::shared_ptr<arrow::Schema> schema,
       std::shared_ptr<ResultIterator<arrow::RecordBatch>>* out) override;
+  std::string GetSignature() override;
   class Impl;
 
  private:

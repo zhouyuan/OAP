@@ -20,9 +20,11 @@ package com.intel.oap.execution
 import java.util.concurrent.TimeUnit._
 
 import com.intel.oap.vectorized._
+import com.intel.oap.ColumnarPluginConfig
 
 import org.apache.spark.TaskContext
 import org.apache.spark.rdd.RDD
+import org.apache.spark.util.{Utils, UserAddedJarUtils}
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.Expression
 import org.apache.spark.sql.catalyst.expressions.codegen._
@@ -33,6 +35,8 @@ import org.apache.spark.sql.execution.metric.SQLMetrics
 
 import scala.collection.JavaConverters._
 import org.apache.spark.internal.Logging
+import org.apache.spark.sql.catalyst.expressions.BoundReference
+import org.apache.spark.sql.catalyst.expressions.BindReferences.bindReference
 import org.apache.spark.sql.vectorized.{ColumnarBatch, ColumnVector}
 import scala.collection.mutable.ListBuffer
 import org.apache.arrow.vector.ipc.message.ArrowFieldNode
@@ -69,9 +73,70 @@ class ColumnarSortMergeJoinExec(
     "numOutputRows" -> SQLMetrics.createMetric(sparkContext, "number of output rows"),
     "joinTime" -> SQLMetrics.createTimingMetric(sparkContext, "time to merge join"))
 
+  val numOutputRows = longMetric("numOutputRows")
+  val joinTime = longMetric("joinTime")
+  val resultSchema = this.schema
+
   override def supportsColumnar = true
+  override def supportCodegen: Boolean = false
 
-  //TODO() Disable code generation
-  //override def supportCodegen: Boolean = false
+  val signature =
+    if (resultSchema.size > 0 && !leftKeys
+          .filter(expr => bindReference(expr, left.output, true).isInstanceOf[BoundReference])
+          .isEmpty && !rightKeys
+          .filter(expr => bindReference(expr, right.output, true).isInstanceOf[BoundReference])
+          .isEmpty) {
 
+      ColumnarSortMergeJoin.prebuild(
+        leftKeys,
+        rightKeys,
+        resultSchema,
+        joinType,
+        condition,
+        left,
+        right,
+        joinTime,
+        numOutputRows,
+        sparkConf)
+    } else {
+      ""
+    }
+
+  val listJars = if (signature != "") {
+    if (sparkContext.listJars.filter(path => path.contains(s"${signature}.jar")).isEmpty) {
+      val tempDir = ColumnarPluginConfig.getRandomTempDir
+      val jarFileName =
+        s"${tempDir}/tmp/spark-columnar-plugin-codegen-precompile-${signature}.jar"
+      sparkContext.addJar(jarFileName)
+    }
+    sparkContext.listJars.filter(path => path.contains(s"${signature}.jar"))
+  } else {
+    List()
+  }
+
+  listJars.foreach(jar => logInfo(s"Uploaded ${jar}"))
+
+  override def doExecuteColumnar(): RDD[ColumnarBatch] = {
+    right.executeColumnar().zipPartitions(left.executeColumnar()) {
+      (streamIter, buildIter) =>
+        ColumnarPluginConfig.getConf(sparkConf)
+        val execTempDir = ColumnarPluginConfig.getTempFile
+        val jarList = listJars
+          .map(jarUrl => {
+            logWarning(s"Get Codegened library Jar ${jarUrl}")
+            UserAddedJarUtils.fetchJarFromSpark(
+              jarUrl,
+              execTempDir,
+              s"spark-columnar-plugin-codegen-precompile-${signature}.jar",
+              sparkConf)
+            s"${execTempDir}/spark-columnar-plugin-codegen-precompile-${signature}.jar"
+          })
+
+        val vsmj = ColumnarSortMergeJoin.create(leftKeys, rightKeys, resultSchema, joinType, condition, left, right, isSkewJoin, listJars, joinTime, numOutputRows, sparkConf)
+        TaskContext.get().addTaskCompletionListener[Unit](_ => {
+        vsmj.close() })
+        val vjoinResult = vsmj.columnarJoin(streamIter, buildIter)
+        new CloseableColumnBatchIterator(vjoinResult)
+    }
+  }
 }
