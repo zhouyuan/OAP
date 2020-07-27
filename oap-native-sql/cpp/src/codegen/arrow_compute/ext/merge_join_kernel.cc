@@ -445,19 +445,22 @@ class ConditionedJoinArraysKernel::Impl {
       shuffle_str = R"(
               )" + ss.str() +
                     R"(
-              out_length += 1;
+              left_it++;
+              out_length += 1;}
       )";
     }
     return R"(
         if (!typed_array->IsNull(i)) {
-          auto index = hash_table_->Get(typed_array->GetView(i));
-          if (index != -1) {
-            for (auto tmp : (*memo_index_to_arrayid_)[index]) {
-              )" +
-           shuffle_str + R"(
+            while (*left_it < typed_array->GetView(i) && left_it != left_list_->end()) {
+            left_it++;
             }
+            while(*left_it == typed_array->GetView(i) && left_it != left_list_->end()) {
+              auto tmp = (*idx_to_arrarid_)[std::distance(left_list_->begin(), left_it)];)" +
+           shuffle_str + R"(
+              if (*left_it > typed_array->GetView(i) && left_it != left_list_->end()){
+              continue;
+              }
           }
-        }
   )";
   }
   std::string GetOuterJoin(bool cond_check,
@@ -770,23 +773,9 @@ class ConditionedJoinArraysKernel::Impl {
     bool multiple_cols = (left_key_index_list.size() > 1);
     std::string hash_map_include_str = R"(#include "precompile/sparse_hash_map.h")";
     std::string hash_map_type_str =
-        "SparseHashMap<" + GetCTypeString(arrow::int32()) + ">";
-    std::string hash_map_define_str =
-        "std::make_shared<" + hash_map_type_str + ">(ctx_->memory_pool());";
-    if (!multiple_cols) {
-      if (left_field_list[left_key_index_list[0]]->type()->id() == arrow::Type::STRING) {
-        hash_map_type_str =
-            GetTypeString(left_field_list[left_key_index_list[0]]->type(), "") +
-            "HashMap";
-        hash_map_include_str = R"(#include "precompile/hash_map.h")";
-      } else {
-        hash_map_type_str =
-            "SparseHashMap<" +
-            GetCTypeString(left_field_list[left_key_index_list[0]]->type()) + ">";
-      }
-      hash_map_define_str =
-          "std::make_shared<" + hash_map_type_str + ">(ctx_->memory_pool());";
-    }
+        "<" + GetCTypeString(arrow::int32()) + ">";
+    std::string hash_map_define_str = "std::make_shared<std::vector" + hash_map_type_str + ">();";
+    //TODO: fix multi columns case
     std::string condition_check_str;
     if (func_node) {
       condition_check_str =
@@ -849,7 +838,7 @@ using namespace sparkcolumnarplugin::precompile;
 class TypedProberImpl : public CodeGenBase {
  public:
   TypedProberImpl(arrow::compute::FunctionContext *ctx) : ctx_(ctx) {
-    hash_table_ = )" +
+    left_list_ = )" +
            hash_map_define_str +
            (multiple_cols ? R"(
     // Create Hash Kernel
@@ -867,42 +856,11 @@ class TypedProberImpl : public CodeGenBase {
            evaluate_get_typed_array_str +
            R"(
 
-    auto insert_on_found = [this](int32_t i) {
-      memo_index_to_arrayid_[i].emplace_back(cur_array_id_, cur_id_);
-    };
-    auto insert_on_not_found = [this](int32_t i) {
-      num_items_++;
-      memo_index_to_arrayid_.push_back(
-          {ArrayItemIndex(cur_array_id_, cur_id_)});
-    };
-
     cur_id_ = 0;
-    int memo_index = 0;
-    if (typed_array->null_count() == 0) {
-      for (; cur_id_ < typed_array->length(); cur_id_++) {
-        hash_table_->GetOrInsert(typed_array->GetView(cur_id_), [](int32_t){},
-                                 [](int32_t){}, &memo_index);
-        if (memo_index < num_items_) {
-          insert_on_found(memo_index);
-        } else {
-          insert_on_not_found(memo_index);
-        }
-      }
-    } else {
-      for (; cur_id_ < typed_array->length(); cur_id_++) {
-        if (typed_array->IsNull(cur_id_)) {
-          hash_table_->GetOrInsertNull([](int32_t){}, [](int32_t){});
-        } else {
-          hash_table_->GetOrInsert(typed_array->GetView(cur_id_),
-                                   [](int32_t){}, [](int32_t){},
-                                   &memo_index);
-        if (memo_index < num_items_) {
-          insert_on_found(memo_index);
-        } else {
-          insert_on_not_found(memo_index);
-        }
-        }
-      }
+    for (; cur_id_ < typed_array->length(); cur_id_++) {
+      left_list_->push_back(typed_array->GetView(cur_id_));
+      idx_to_arrarid_.emplace_back(cur_array_id_, cur_id_);
+      idx++;
     }
     cur_array_id_++;
     return arrow::Status::OK();
@@ -912,7 +870,7 @@ class TypedProberImpl : public CodeGenBase {
       std::shared_ptr<arrow::Schema> schema,
       std::shared_ptr<ResultIterator<arrow::RecordBatch>> *out) override {
     *out = std::make_shared<ProberResultIterator>(
-        ctx_, schema, hash_kernel_, hash_table_, &memo_index_to_arrayid_)" +
+        ctx_, schema, left_list_, &idx_to_arrarid_)" +
            finish_cached_parameter_str + R"(
     );
     return arrow::Status::OK();
@@ -921,12 +879,11 @@ class TypedProberImpl : public CodeGenBase {
 private:
   uint64_t cur_array_id_ = 0;
   uint64_t cur_id_ = 0;
+  uint64_t idx = 0;
   uint64_t num_items_ = 0;
   arrow::compute::FunctionContext *ctx_;
-  std::shared_ptr<HashArraysKernel> hash_kernel_;
-  std::shared_ptr<)" +
-           hash_map_type_str + R"(> hash_table_;
-  std::vector<std::vector<ArrayItemIndex>> memo_index_to_arrayid_;
+  std::shared_ptr<std::vector)" + hash_map_type_str + R"(> left_list_;
+  std::vector<ArrayItemIndex> idx_to_arrarid_;
   )" + impl_cached_define_str +
            R"( 
 
@@ -935,14 +892,11 @@ private:
     ProberResultIterator(
         arrow::compute::FunctionContext *ctx,
         std::shared_ptr<arrow::Schema> schema,
-        std::shared_ptr<HashArraysKernel> hash_kernel,
-        std::shared_ptr<)" +
-           hash_map_type_str + R"(> hash_table,
-        std::vector<std::vector<ArrayItemIndex>> *memo_index_to_arrayid)" +
+        std::shared_ptr<std::vector)" + hash_map_type_str + R"(> left_list,
+        std::vector<ArrayItemIndex> *idx_to_arrarid)" +
            result_iter_params_str + R"(
         )
-        : ctx_(ctx), result_schema_(schema), hash_kernel_(hash_kernel), hash_table_(hash_table),
-          memo_index_to_arrayid_(memo_index_to_arrayid) {
+        : ctx_(ctx), result_schema_(schema), left_list_(left_list), idx_to_arrarid_(idx_to_arrarid) {
             )" +
            result_iter_set_str + result_iter_prepare_str + R"(
     }
@@ -957,6 +911,7 @@ private:
            process_get_typed_array_str +
            R"(
       auto length = cached_1_0_->length();
+      auto left_it = left_list_->begin();
 
       for (int i = 0; i < length; i++) {)" +
            process_probe_str + R"(
@@ -974,10 +929,8 @@ private:
   private:
     arrow::compute::FunctionContext *ctx_;
     std::shared_ptr<arrow::Schema> result_schema_;
-    std::shared_ptr<HashArraysKernel> hash_kernel_;
-    std::shared_ptr<)" +
-           hash_map_type_str + R"(> hash_table_;
-    std::vector<std::vector<ArrayItemIndex>> *memo_index_to_arrayid_;
+    std::shared_ptr<std::vector)" + hash_map_type_str + R"(> left_list_;
+    std::vector<ArrayItemIndex> *idx_to_arrarid_;
 )" + result_iter_cached_define_str +
            R"(
       )" + condition_check_str +

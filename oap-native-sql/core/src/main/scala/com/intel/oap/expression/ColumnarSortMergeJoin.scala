@@ -58,6 +58,9 @@ import com.intel.oap.vectorized.BatchIterator
  * Performs a sort merge join of two child relations.
  */
 class ColumnarSortMergeJoin(
+    prober: ExpressionEvaluator,
+    stream_input_arrow_schema: Schema,
+    output_arrow_schema: Schema,
     leftKeys: Seq[Expression],
     rightKeys: Seq[Expression],
     resultSchema: StructType,
@@ -74,13 +77,8 @@ class ColumnarSortMergeJoin(
   var probe_iterator: BatchIterator = _
   var build_cb: ColumnarBatch = null
   var last_cb: ColumnarBatch = null
-  //TODO: fix schema
-  val stream_input_arrow_schema: Schema = null
-  val output_arrow_schema: Schema = null
 
   val inputBatchHolder = new ListBuffer[ColumnarBatch]()
-  //TODO: fix prober init
-  val prober = new ExpressionEvaluator()
 
   def columnarJoin(
     streamIter: Iterator[ColumnarBatch],
@@ -148,8 +146,6 @@ class ColumnarSortMergeJoin(
         }
       }
     }
-
-    buildIter
   }
 
   def close(): Unit = {
@@ -396,6 +392,9 @@ object ColumnarSortMergeJoin extends Logging {
       true)
 
     columnarSortMergeJoin = new ColumnarSortMergeJoin(
+      prober,
+      stream_input_arrow_schema,
+      output_arrow_schema,
       leftKeys,
       rightKeys,
       resultSchema,
