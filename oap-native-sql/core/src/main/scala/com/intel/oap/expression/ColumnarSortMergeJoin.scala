@@ -227,7 +227,7 @@ object ColumnarSortMergeJoin extends Logging {
       case RightOuter =>
         ("conditionedProbeArraysOuter", build_input_field_list, stream_input_field_list)
       case LeftAnti =>
-        ("conditionedProbeArraysAnti", List[Field](), stream_input_field_list)
+        ("conditionedJoinArraysAnti", List[Field](), stream_input_field_list)
       case j: ExistenceJoin =>
         val existsSchema = j.exists
         existsField = Field.nullable(

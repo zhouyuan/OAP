@@ -550,18 +550,25 @@ class ConditionedJoinArraysKernel::Impl {
       )";
     }
     return R"(
-        int32_t index;
-        if (!typed_array->IsNull(i)) {
-          index = hash_table_->Get(typed_array->GetView(i));
-        } else {
-          index = hash_table_->GetNull();
-        }
-        if (index == -1) {
+  while (*left_it < typed_array->GetView(i) && left_it != left_list_->end()) {
+    left_it++;
+  }
+
+  while(*left_it == typed_array->GetView(i) && left_it != left_list_->end()) {
+    left_it++;
+    last_match_idx = i;
+  }
+  if (*left_it > typed_array->GetView(i) && left_it != left_list_->end() ) {
+    if (last_match_idx == i) {
+      continue;
+    }
           )" +
            left_null_ss.str() + right_valid_ss.str() + R"(
+          out_length += 1; }
+  if (left_it == left_list_->end()) {
+          )" + //TODO: cond check
+            left_null_ss.str() + right_valid_ss.str() + R"(
           out_length += 1;
-          )" +
-           shuffle_str + R"(
         }
   )";
   }
