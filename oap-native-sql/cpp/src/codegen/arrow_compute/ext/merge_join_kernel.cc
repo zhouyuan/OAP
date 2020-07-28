@@ -497,22 +497,26 @@ class ConditionedJoinArraysKernel::Impl {
       )";
     }
     return R"(
-        int32_t index;
-        if (!typed_array->IsNull(i)) {
-          index = hash_table_->Get(typed_array->GetView(i));
-        } else {
-          index = hash_table_->GetNull();
-        }
-        if (index == -1) {
-          )" +
-           left_null_ss.str() + right_valid_ss.str() + R"(
+         while (*left_it < typed_array->GetView(i) && left_it != left_list_->end()) {
+    left_it++;
+  }
+  while(*left_it == typed_array->GetView(i) && left_it != left_list_->end()) {
+    auto tmp = (*idx_to_arrarid_)[std::distance(left_list_->begin(), left_it)];
+          )" + //TODO: cond check
+           left_valid_ss.str() + right_valid_ss.str() + R"(
+          left_it++;
+          last_match_idx = i;
           out_length += 1;
-        } else {
-          for (auto tmp : (*memo_index_to_arrayid_)[index]) {
-            )" +
-           shuffle_str + R"(
-          }
         }
+        if(*left_it > typed_array->GetView(i) && left_it != left_list_->end() ) {
+          if (last_match_idx == i) {
+            continue;
+          }
+          auto tmp = (*idx_to_arrarid_)[std::distance(left_list_->begin(), left_it)];
+            )" +
+           left_null_ss.str() + right_valid_ss.str() + R"(
+             out_length += 1;
+          }
   )";
   }
   std::string GetAntiJoin(bool cond_check,
@@ -912,6 +916,7 @@ private:
            R"(
       auto length = cached_1_0_->length();
       auto left_it = left_list_->begin();
+      int last_match_idx = -1;
 
       for (int i = 0; i < length; i++) {)" +
            process_probe_str + R"(

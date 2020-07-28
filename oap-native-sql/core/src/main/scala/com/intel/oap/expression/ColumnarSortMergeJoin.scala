@@ -223,7 +223,7 @@ object ColumnarSortMergeJoin extends Logging {
       case LeftSemi =>
         ("conditionedProbeArraysSemi", List[Field](), stream_input_field_list)
       case LeftOuter =>
-        ("conditionedProbeArraysOuter", build_input_field_list, stream_input_field_list)
+        ("conditionedJoinArraysOuter", build_input_field_list, stream_input_field_list)
       case RightOuter =>
         ("conditionedProbeArraysOuter", build_input_field_list, stream_input_field_list)
       case LeftAnti =>
