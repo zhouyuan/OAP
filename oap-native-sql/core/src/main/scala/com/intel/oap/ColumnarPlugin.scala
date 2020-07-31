@@ -160,18 +160,24 @@ case class ColumnarPreOverrides(conf: SparkConf) extends Rule[SparkPlan] {
       }
 
     case plan: SortMergeJoinExec =>
-      val left = replaceWithColumnarPlan(plan.left)
-      val right = replaceWithColumnarPlan(plan.right)
-      logInfo(s"Columnar Processing for ${plan.getClass} is currently supported.")
-      val res = new ColumnarSortMergeJoinExec(
-        plan.leftKeys,
-        plan.rightKeys,
-        plan.joinType,
-        plan.condition,
-        left,
-        right,
-        plan.isSkewJoin)
-      res
+      if (columnarConf.enableColumnarSortMergeJoin) {
+        val left = replaceWithColumnarPlan(plan.left)
+        val right = replaceWithColumnarPlan(plan.right)
+        logInfo(s"Columnar Processing for ${plan.getClass} is currently supported.")
+        val res = new ColumnarSortMergeJoinExec(
+          plan.leftKeys,
+          plan.rightKeys,
+          plan.joinType,
+          plan.condition,
+          left,
+          right,
+          plan.isSkewJoin)
+        res
+      } else {
+        val children = plan.children.map(replaceWithColumnarPlan)
+        logDebug(s"Columnar Processing for ${plan.getClass} is not currently supported.")
+        plan.withNewChildren(children)
+      }
 
     case plan: ShuffleQueryStageExec if columnarConf.enableColumnarShuffle =>
       // To catch the case when AQE enabled and there's no wrapped CustomShuffleReaderExec,
