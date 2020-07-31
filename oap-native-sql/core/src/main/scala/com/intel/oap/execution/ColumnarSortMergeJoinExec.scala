@@ -71,10 +71,12 @@ class ColumnarSortMergeJoinExec(
   val sparkConf = sparkContext.getConf
   override lazy val metrics = Map(
     "numOutputRows" -> SQLMetrics.createMetric(sparkContext, "number of output rows"),
-    "joinTime" -> SQLMetrics.createTimingMetric(sparkContext, "time to merge join"))
+    "joinTime" -> SQLMetrics.createTimingMetric(sparkContext, "time to merge join"),
+    "totaltime_sortmergejoin" -> SQLMetrics.createTimingMetric(sparkContext, "totaltime_sortmergejoin"))
 
   val numOutputRows = longMetric("numOutputRows")
   val joinTime = longMetric("joinTime")
+  val totaltime_sortmegejoin = longMetric("totaltime_sortmergejoin")
   val resultSchema = this.schema
 
   override def supportsColumnar = true
@@ -96,6 +98,7 @@ class ColumnarSortMergeJoinExec(
         left,
         right,
         joinTime,
+        totaltime_sortmegejoin,
         numOutputRows,
         sparkConf)
     } else {
@@ -132,7 +135,8 @@ class ColumnarSortMergeJoinExec(
             s"${execTempDir}/spark-columnar-plugin-codegen-precompile-${signature}.jar"
           })
 
-        val vsmj = ColumnarSortMergeJoin.create(leftKeys, rightKeys, resultSchema, joinType, condition, left, right, isSkewJoin, listJars, joinTime, numOutputRows, sparkConf)
+        val vsmj = ColumnarSortMergeJoin.create(leftKeys, rightKeys, resultSchema, joinType, 
+            condition, left, right, isSkewJoin, listJars, joinTime, totaltime_sortmegejoin, numOutputRows, sparkConf)
         TaskContext.get().addTaskCompletionListener[Unit](_ => {
         vsmj.close() })
         val vjoinResult = vsmj.columnarJoin(streamIter, buildIter)
