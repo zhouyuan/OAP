@@ -178,7 +178,9 @@ TEST(TestArrowComputeMergeJoin, JoinTestUsingOuterJoin) {
   std::vector<std::shared_ptr<arrow::RecordBatch>> table_1;
 
   std::vector<std::string> input_data_string = {
-      "[null, null, 2, 3, 5, 7, 9, 11]", "[null, null, 2, 3, 5, 7, 9, 11]", "[null, null, 2, 3, 5, 7, 9, 11]"};
+      "[null, null, 2, 2, 3, 5, 7, 9, 11]",
+      "[null, null, 2, 2, 3, 5, 7, 9, 11]",
+      "[null, null, 2, 2, 3, 5, 7, 9, 11]"};
   MakeInputBatch(input_data_string, schema_table_0, &input_batch);
   table_0.push_back(input_batch);
 
@@ -201,9 +203,9 @@ TEST(TestArrowComputeMergeJoin, JoinTestUsingOuterJoin) {
   std::vector<std::shared_ptr<RecordBatch>> expected_table;
   std::shared_ptr<arrow::RecordBatch> expected_result;
   std::vector<std::string> expected_result_string = {
-      "[0, 0, null, 2, 3, null, 5, null]", "[0, 0, null, 2, 3, null, 5, null]",
-      "[0, 0, null, 2, 3, null, 5, null]", "[0, 0, 1, 2, 3, 4, 5, 6]",
-      "[0, 0, 1, 2, 3, 4, 5, 6]"};
+      "[0, 0, null, 2, 2, 3, null, 5, null]", "[0, 0, null, 2, 2, 3, null, 5, null]",
+      "[0, 0, null, 2, 2, 3, null, 5, null]", "[0, 0, 1, 2, 2, 3, 4, 5, 6]",
+      "[0, 0, 1, 2, 2, 3, 4, 5, 6]"};
   auto res_sch = arrow::schema({f_res, f_res, f_res, f_res, f_res});
   MakeInputBatch(expected_result_string, res_sch, &expected_result);
   expected_table.push_back(expected_result);
