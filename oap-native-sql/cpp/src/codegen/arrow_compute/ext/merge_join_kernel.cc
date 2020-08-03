@@ -440,12 +440,12 @@ class ConditionedJoinArraysKernel::Impl {
                     R"(
                 out_length += 1;
               }
+            }
       )";
     } else {
       shuffle_str = R"(
               )" + ss.str() +
                     R"(
-              left_it++;
               out_length += 1;}
       )";
     }
@@ -454,7 +454,7 @@ class ConditionedJoinArraysKernel::Impl {
             while (*left_it < typed_array->GetView(i) && left_it != left_list_->end()) {
             left_it++;
             }
-            while(*left_it == typed_array->GetView(i) && left_it != left_list_->end()) {
+            if(*left_it == typed_array->GetView(i) && left_it != left_list_->end()) {
               auto tmp = (*idx_to_arrarid_)[std::distance(left_list_->begin(), left_it)];)" +
            shuffle_str + R"(
               if (*left_it > typed_array->GetView(i) && left_it != left_list_->end()){
@@ -784,7 +784,7 @@ class ConditionedJoinArraysKernel::Impl {
     bool multiple_cols = (left_key_index_list.size() > 1);
     std::string hash_map_include_str = R"(#include "precompile/sparse_hash_map.h")";
     std::string hash_map_type_str =
-        "<" + GetCTypeString(arrow::int32()) + ">";
+        "<" + GetCTypeString(left_field_list[left_key_index_list[0]]->type()) + ">";
     std::string hash_map_define_str = "std::make_shared<std::vector" + hash_map_type_str + ">();";
     //TODO: fix multi columns case
     std::string condition_check_str;

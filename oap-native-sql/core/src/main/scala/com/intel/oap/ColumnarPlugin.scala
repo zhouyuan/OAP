@@ -160,10 +160,10 @@ case class ColumnarPreOverrides(conf: SparkConf) extends Rule[SparkPlan] {
       }
 
     case plan: SortMergeJoinExec =>
-      if (columnarConf.enableColumnarSortMergeJoin) {
+      if (columnarConf.enableColumnarSortMergeJoin && plan.leftKeys.size == 1) {
         val left = replaceWithColumnarPlan(plan.left)
         val right = replaceWithColumnarPlan(plan.right)
-        logInfo(s"Columnar Processing for ${plan.getClass} is currently supported.")
+        logDebug(s"Columnar Processing for ${plan.getClass} is currently supported.")
         val res = new ColumnarSortMergeJoinExec(
           plan.leftKeys,
           plan.rightKeys,

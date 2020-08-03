@@ -88,7 +88,7 @@ TEST(TestArrowComputeMergeJoin, JoinTestUsingInnerJoin) {
   MakeInputBatch(input_data_2_string, schema_table_1, &input_batch);
   table_1.push_back(input_batch);
 
-  input_data_2_string = {"[13, 14, 15, 16, 17, 19]", "[13, 14, 15, 16, 17, 19]"};
+  input_data_2_string = {"[13, 14, 15, 15, 17, 19]", "[13, 14, 15, 15, 17, 19]"};
   MakeInputBatch(input_data_2_string, schema_table_1, &input_batch);
   table_1.push_back(input_batch);
 
@@ -104,8 +104,8 @@ TEST(TestArrowComputeMergeJoin, JoinTestUsingInnerJoin) {
   MakeInputBatch(expected_result_string, res_sch, &expected_result);
   expected_table.push_back(expected_result);
 
-  expected_result_string = {"[13, 14, 15]", "[13, 14, 15]", "[13, 14, 15]",
-                            "[13, 14, 15]", "[13, 14, 15]"};
+  expected_result_string = {"[13, 14, 15, 15]", "[13, 14, 15, 15]", "[13, 14, 15, 15]",
+                            "[13, 14, 15, 15]", "[13, 14, 15, 15]"};
   MakeInputBatch(expected_result_string, res_sch, &expected_result);
   expected_table.push_back(expected_result);
 
@@ -362,7 +362,7 @@ TEST(TestArrowComputeMergeJoin, JoinTestUsingInnerJoinWithCondition) {
   auto n_right_key = TreeExprBuilder::MakeFunction(
       "codegen_right_schema", {TreeExprBuilder::MakeField(table1_f0)}, uint32());
   auto n_probeArrays = TreeExprBuilder::MakeFunction(
-      "conditionedProbeArraysInner", {n_left_key, n_right_key, greater_than_function},
+      "conditionedJoinArraysInner", {n_left_key, n_right_key, greater_than_function},
       uint32());
   auto n_codegen_probe = TreeExprBuilder::MakeFunction(
       "codegen_withTwoInputs", {n_probeArrays, n_left, n_right}, uint32());
@@ -387,11 +387,11 @@ TEST(TestArrowComputeMergeJoin, JoinTestUsingInnerJoinWithCondition) {
   std::vector<std::shared_ptr<arrow::RecordBatch>> table_1;
 
   std::vector<std::string> input_data_string = {
-      "[10, 3, 1, 2, 3, 1]", "[10, 3, 1, 2, 13, 11]", "[10, 3, 1, 2, 13, 11]"};
+      "[1, 3, 5, 7, 9, 10]", "[10, 3, 1, 2, 13, 11]", "[10, 3, 1, 2, 13, 11]"};
   MakeInputBatch(input_data_string, schema_table_0, &input_batch);
   table_0.push_back(input_batch);
 
-  input_data_string = {"[6, 12, 5, 8, 6, 10]", "[6, 12, 5, 8, 16, 110]",
+  input_data_string = {"[13, 14, 15, 15, 17, 19]", "[6, 12, 5, 8, 16, 110]",
                        "[6, 12, 5, 8, 16, 110]"};
   MakeInputBatch(input_data_string, schema_table_0, &input_batch);
   table_0.push_back(input_batch);
@@ -401,7 +401,7 @@ TEST(TestArrowComputeMergeJoin, JoinTestUsingInnerJoinWithCondition) {
   MakeInputBatch(input_data_2_string, schema_table_1, &input_batch);
   table_1.push_back(input_batch);
 
-  input_data_2_string = {"[7, 8, 9, 10, 11, 12]", "[7, 8, 9, 10, 11, 12]"};
+  input_data_2_string = {"[7, 8, 9, 10, 11, 12]", "[7, 8, 9, 4, 11, 12]"};
   MakeInputBatch(input_data_2_string, schema_table_1, &input_batch);
   table_1.push_back(input_batch);
 
@@ -410,12 +410,12 @@ TEST(TestArrowComputeMergeJoin, JoinTestUsingInnerJoinWithCondition) {
   std::vector<std::shared_ptr<RecordBatch>> expected_table;
   std::shared_ptr<arrow::RecordBatch> expected_result;
   std::vector<std::string> expected_result_string = {
-      "[1, 3, 6]", "[11, 13, 16]", "[11, 13, 16]", "[1, 3, 6]", "[1, 3, 6]"};
+      "[1]", "[10]", "[10]", "[1]", "[1]"};
   auto res_sch = arrow::schema({f_res, f_res, f_res, f_res, f_res});
   MakeInputBatch(expected_result_string, res_sch, &expected_result);
   expected_table.push_back(expected_result);
 
-  expected_result_string = {"[10]", "[110]", "[110]", "[10]", "[10]"};
+  expected_result_string = {"[9, 10]", "[13, 11]", "[13, 11]", "[9, 10]", "[9, 4]"};
   MakeInputBatch(expected_result_string, res_sch, &expected_result);
   expected_table.push_back(expected_result);
 
