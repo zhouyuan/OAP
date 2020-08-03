@@ -448,6 +448,7 @@ class ConditionedJoinArraysKernel::Impl {
                     R"(
               left_it++;
               out_length += 1;}
+              left_it = old_it;
       )";
     }
     return R"(
@@ -455,6 +456,7 @@ class ConditionedJoinArraysKernel::Impl {
             while (*left_it < typed_array->GetView(i) && left_it != left_list_->end()) {
             left_it++;
             }
+            auto old_it = left_it;
             while(*left_it == typed_array->GetView(i) && left_it != left_list_->end()) {
               auto tmp = (*idx_to_arrarid_)[std::distance(left_list_->begin(), left_it)];)" +
            shuffle_str + R"(
