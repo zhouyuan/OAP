@@ -497,14 +497,14 @@ class ConditionedJoinArraysKernel::Impl {
       )";
     }
     return R"(
+      if (!typed_array->IsNull(i)) {
          while (*left_it < typed_array->GetView(i) && left_it != left_list_->end()) {
     left_it++;
   }
-  while(*left_it == typed_array->GetView(i) && left_it != left_list_->end()) {
+  if(*left_it == typed_array->GetView(i) && left_it != left_list_->end()) {
     auto tmp = (*idx_to_arrarid_)[std::distance(left_list_->begin(), left_it)];
           )" + //TODO: cond check
            left_valid_ss.str() + right_valid_ss.str() + R"(
-          left_it++;
           last_match_idx = i;
           out_length += 1;
         }
@@ -517,6 +517,18 @@ class ConditionedJoinArraysKernel::Impl {
            left_null_ss.str() + right_valid_ss.str() + R"(
              out_length += 1;
           }
+        } else {
+          auto old_it = left_it;
+          while(*left_it == typed_array->GetView(i) && left_it != left_list_->end()) { 
+            auto tmp = (*idx_to_arrarid_)[std::distance(left_list_->begin(), left_it)];
+            )"
+          + left_valid_ss.str() + right_valid_ss.str()
+          + R"(
+            left_it++;
+            out_length += 1;
+            }
+          left_it = old_it;
+        }
   )";
   }
   std::string GetAntiJoin(bool cond_check,
@@ -554,8 +566,7 @@ class ConditionedJoinArraysKernel::Impl {
     left_it++;
   }
 
-  while(*left_it == typed_array->GetView(i) && left_it != left_list_->end()) {
-    left_it++;
+  if (*left_it == typed_array->GetView(i) && left_it != left_list_->end()) {
     last_match_idx = i;
   }
   if (*left_it > typed_array->GetView(i) && left_it != left_list_->end() ) {
@@ -586,14 +597,13 @@ class ConditionedJoinArraysKernel::Impl {
     std::string shuffle_str;
     if (cond_check) {
       shuffle_str = R"(
-            for (auto tmp : (*memo_index_to_arrayid_)[index]) {
+            auto tmp = (*idx_to_arrarid_)[std::distance(left_list_->begin(), left_it)]; 
               if (ConditionCheck(tmp, i)) {
                 )" + ss.str() +
                     R"(
                 out_length += 1;
                 break;
               }
-            }
       )";
     } else {
       shuffle_str = R"(
@@ -603,13 +613,19 @@ class ConditionedJoinArraysKernel::Impl {
       )";
     }
     return R"(
-        if (!typed_array->IsNull(i)) {
-          auto index = hash_table_->Get(typed_array->GetView(i));
-          if (index != -1) {
-                )" +
-           shuffle_str + R"(
-          }
+             if (!typed_array->IsNull(i)) {
+  while (*left_it < typed_array->GetView(i) && left_it != left_list_->end()) {
+    left_it++;
+  }
+
+  if (*left_it == typed_array->GetView(i) && left_it != left_list_->end()) {)" + 
+    shuffle_str + R"(
+  }
+  if (*left_it > typed_array->GetView(i) && left_it != left_list_->end() ) {
+    continue;
+    
         }
+      }
   )";
   }
   std::string GetExistenceJoin(bool cond_check,

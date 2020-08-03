@@ -223,6 +223,7 @@ object ColumnarSortMergeJoin extends Logging {
         .nullable(s"${attr.name}#${attr.exprId.id}", CodeGeneration.getResultType(attr.dataType))
     })
 
+    //TODO: fix left/right join
     val (
       build_key_field_list,
       stream_key_field_list,
@@ -235,11 +236,11 @@ object ColumnarSortMergeJoin extends Logging {
       case _: InnerLike =>
         ("conditionedJoinArraysInner", build_input_field_list, stream_input_field_list)
       case LeftSemi =>
-        ("conditionedProbeArraysSemi", List[Field](), stream_input_field_list)
+        ("conditionedJoinArraysSemi", List[Field](), stream_input_field_list)
       case LeftOuter =>
         ("conditionedJoinArraysOuter", build_input_field_list, stream_input_field_list)
       case RightOuter =>
-        ("conditionedProbeArraysOuter", build_input_field_list, stream_input_field_list)
+        ("conditionedJoinArraysOuter", build_input_field_list, stream_input_field_list)
       case LeftAnti =>
         ("conditionedJoinArraysAnti", List[Field](), stream_input_field_list)
       case j: ExistenceJoin =>
