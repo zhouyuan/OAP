@@ -523,6 +523,12 @@ class ConditionedJoinArraysKernel::Impl {
            left_null_ss.str() + right_valid_ss.str() + R"(
              out_length += 1;
           }
+          if (left_it == left_list_->end()) {
+            )" +
+            left_null_ss.str() + right_valid_ss.str() + R"(
+            out_length += 1;
+          }
+
         } else {
           auto old_it = left_it;
           while(*left_it == typed_array->GetView(i) && left_it != left_list_->end()) { 
