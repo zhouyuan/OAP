@@ -85,11 +85,23 @@ class ColumnarSortMergeJoin(
     streamIter: Iterator[ColumnarBatch],
     buildIter: Iterator[ColumnarBatch]): Iterator[ColumnarBatch] = {
 
-    while (buildIter.hasNext) {
+
+    val (realbuildIter, realstreamIter) = joinType match {
+      case LeftSemi =>
+        (streamIter, buildIter)
+      case LeftOuter =>
+        (streamIter, buildIter)
+      case LeftAnti =>
+        (streamIter, buildIter)
+      case _ =>
+        (buildIter, streamIter)
+    }
+
+    while (realbuildIter.hasNext) {
       if (build_cb != null) {
         build_cb = null
       }
-      build_cb = buildIter.next()
+      build_cb = realbuildIter.next()
       val beforeBuild = System.nanoTime()
       val build_rb = ConverterUtils.createArrowRecordBatch(build_cb)
       (0 until build_cb.numCols).toList.foreach(i =>
@@ -120,7 +132,7 @@ class ColumnarSortMergeJoin(
     probe_iterator = prober.finishByIterator()
     new Iterator[ColumnarBatch] {
       override def hasNext: Boolean = {
-        if (streamIter.hasNext) {
+        if (realstreamIter.hasNext) {
           true
         } else {
           inputBatchHolder.foreach(cb => cb.close())
@@ -129,7 +141,7 @@ class ColumnarSortMergeJoin(
       }
 
       override def next(): ColumnarBatch = {
-        val cb = streamIter.next()
+        val cb = realstreamIter.next()
         last_cb = cb
         val beforeJoin = System.nanoTime()
         val stream_rb: ArrowRecordBatch = ConverterUtils.createArrowRecordBatch(cb)
@@ -223,12 +235,29 @@ object ColumnarSortMergeJoin extends Logging {
         .nullable(s"${attr.name}#${attr.exprId.id}", CodeGeneration.getResultType(attr.dataType))
     })
 
-    //TODO: fix left/right join
+    //TODO: fix join left/right
+    val buildSide :BuildSide = joinType match {
+      case LeftSemi =>
+        BuildRight
+      case LeftOuter =>
+        BuildRight
+      case LeftAnti =>
+        BuildRight
+      case _ =>
+        BuildLeft
+    }
     val (
       build_key_field_list,
       stream_key_field_list,
       build_input_field_list,
-      stream_input_field_list) = (lkeyFieldList, rkeyFieldList, l_input_field_list, r_input_field_list)
+      stream_input_field_list) = buildSide match {
+      case BuildLeft =>
+        (lkeyFieldList, rkeyFieldList, l_input_field_list, r_input_field_list)
+
+      case BuildRight =>
+        (rkeyFieldList, lkeyFieldList, r_input_field_list, l_input_field_list)
+
+    }
 
     var existsField: Field = null
     var existsIndex: Int = -1
@@ -236,13 +265,15 @@ object ColumnarSortMergeJoin extends Logging {
       case _: InnerLike =>
         ("conditionedJoinArraysInner", build_input_field_list, stream_input_field_list)
       case LeftSemi =>
-        ("conditionedJoinArraysSemi", List[Field](), stream_input_field_list)
+        //("conditionedJoinArraysSemi", List[Field](), stream_input_field_list)
+        ("conditionedJoinArraysSemi", build_input_field_list, stream_input_field_list)
       case LeftOuter =>
         ("conditionedJoinArraysOuter", build_input_field_list, stream_input_field_list)
       case RightOuter =>
         ("conditionedJoinArraysOuter", build_input_field_list, stream_input_field_list)
       case LeftAnti =>
-        ("conditionedJoinArraysAnti", List[Field](), stream_input_field_list)
+        //("conditionedJoinArraysAnti", List[Field](), stream_input_field_list)
+        ("conditionedJoinArraysAnti", build_input_field_list, stream_input_field_list)
       case j: ExistenceJoin =>
         val existsSchema = j.exists
         existsField = Field.nullable(
@@ -268,15 +299,26 @@ object ColumnarSortMergeJoin extends Logging {
       case None =>
         null
     }
-    val (conditionInputFieldList, conditionOutputFieldList) = joinType match {
-        //TODO: fix existencejoin
+    val (conditionInputFieldList, conditionOutputFieldList) = buildSide match {
+      case BuildLeft =>
+        joinType match {
           case ExistenceJoin(_) =>
             throw new UnsupportedOperationException(
               s"BuildLeft for ${joinType} is not supported yet.")
           case _ =>
             (build_input_field_list, build_output_field_list ::: stream_output_field_list)
-
+        }
+      case BuildRight =>
+        joinType match {
+          case ExistenceJoin(_) =>
+            val (front, back) = stream_output_field_list.splitAt(existsIndex)
+            val existsOutputFieldList = (front :+ existsField) ::: back
+            (build_input_field_list, existsOutputFieldList)
+          case _ =>
+            (build_input_field_list, stream_output_field_list ::: build_output_field_list)
+        }
     }
+
     val conditionArrowSchema = new Schema(conditionInputFieldList.asJava)
     output_arrow_schema = new Schema(conditionOutputFieldList.asJava)
     var conditionInputList: java.util.List[Field] = Lists.newArrayList()
