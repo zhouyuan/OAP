@@ -484,7 +484,7 @@ TEST(TestArrowComputeMergeJoin, JoinTestUsingSemiJoinWithCondition) {
   std::vector<std::shared_ptr<arrow::RecordBatch>> table_1;
 
   std::vector<std::string> input_data_string = {
-      "[2, 3, 5, 7, 9, 11]", "[2, 3, 5, 7, 9, 11]", "[2, 3, 5, 7, 9, 11]"};
+      "[2, 2, 3, 5, 7, 9, 11]", "[2, 7, 3, 5, 7, 9, 11]", "[2, 7, 3, 5, 7, 9, 11]"};
   MakeInputBatch(input_data_string, schema_table_0, &input_batch);
   table_0.push_back(input_batch);
 
@@ -696,8 +696,8 @@ TEST(TestArrowComputeMergeJoin, JoinTestUsingAntiJoinWithCondition) {
   MakeInputBatch(input_data_string, schema_table_0, &input_batch);
   table_0.push_back(input_batch);
 
-  input_data_string = {"[12, 13, 14, 15, 16]", "[12, 13, 14, 15, 16]",
-                       "[12, 13, 14, 15, 16]"};
+  input_data_string = {"[12, 12, 13, 14, 15, 16]", "[12, 14, 13, 14, 15, 16]",
+                       "[12, 13, 13, 14, 15, 16]"};
   MakeInputBatch(input_data_string, schema_table_0, &input_batch);
   table_0.push_back(input_batch);
 
@@ -706,7 +706,7 @@ TEST(TestArrowComputeMergeJoin, JoinTestUsingAntiJoinWithCondition) {
   MakeInputBatch(input_data_2_string, schema_table_1, &input_batch);
   table_1.push_back(input_batch);
 
-  input_data_2_string = {"[7, 8, 9, 10, 11, 12]", "[6, 8, 9, 10, 10, 11]"};
+  input_data_2_string = {"[7, 8, 9, 10, 11, 12]", "[6, 8, 9, 10, 10, 13]"};
   MakeInputBatch(input_data_2_string, schema_table_1, &input_batch);
   table_1.push_back(input_batch);
 
