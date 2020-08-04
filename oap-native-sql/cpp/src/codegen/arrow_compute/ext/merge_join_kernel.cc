@@ -622,7 +622,7 @@ class ConditionedJoinArraysKernel::Impl {
                 )" + ss.str() +
                     R"(
                 out_length += 1;
-                //break;
+                break;
               }
       )";
     } else {
@@ -638,9 +638,12 @@ class ConditionedJoinArraysKernel::Impl {
     left_it++;
   }
   
-  if (*left_it == typed_array->GetView(i) && left_it != left_list_->end()) {)" + 
+  auto old_it = left_it;
+  while (*left_it == typed_array->GetView(i) && left_it != left_list_->end()) {)" +
     shuffle_str + R"(
+      left_it++;
   }
+  left_it = old_it;
   if (*left_it > typed_array->GetView(i) && left_it != left_list_->end() ) {
     continue;
     
