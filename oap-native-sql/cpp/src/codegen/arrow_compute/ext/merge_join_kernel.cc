@@ -905,7 +905,8 @@ class TypedProberImpl : public CodeGenBase {
     hash_kernel_ = std::make_shared<HashArraysKernel>(ctx_->memory_pool(), field_list);)"
                           : "") +
            R"(
-
+    left_list_->reserve(3000000);
+    idx_to_arrarid_.reserve(3000000);
   }
   ~TypedProberImpl() {}
 
