@@ -71,11 +71,13 @@ class ColumnarSortMergeJoinExec(
   val sparkConf = sparkContext.getConf
   override lazy val metrics = Map(
     "numOutputRows" -> SQLMetrics.createMetric(sparkContext, "number of output rows"),
+    "prepareTime" -> SQLMetrics.createTimingMetric(sparkContext, "time to prepare left list"),
     "joinTime" -> SQLMetrics.createTimingMetric(sparkContext, "time to merge join"),
     "totaltime_sortmergejoin" -> SQLMetrics.createTimingMetric(sparkContext, "totaltime_sortmergejoin"))
 
   val numOutputRows = longMetric("numOutputRows")
   val joinTime = longMetric("joinTime")
+  val prepareTime = longMetric("prepareTime")
   val totaltime_sortmegejoin = longMetric("totaltime_sortmergejoin")
   val resultSchema = this.schema
 
@@ -98,6 +100,7 @@ class ColumnarSortMergeJoinExec(
         left,
         right,
         joinTime,
+        prepareTime,
         totaltime_sortmegejoin,
         numOutputRows,
         sparkConf)
@@ -136,7 +139,7 @@ class ColumnarSortMergeJoinExec(
           })
 
         val vsmj = ColumnarSortMergeJoin.create(leftKeys, rightKeys, resultSchema, joinType, 
-            condition, left, right, isSkewJoin, listJars, joinTime, totaltime_sortmegejoin, numOutputRows, sparkConf)
+            condition, left, right, isSkewJoin, listJars, joinTime, prepareTime, totaltime_sortmegejoin, numOutputRows, sparkConf)
         TaskContext.get().addTaskCompletionListener[Unit](_ => {
         vsmj.close() })
         val vjoinResult = vsmj.columnarJoin(streamIter, buildIter)

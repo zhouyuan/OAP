@@ -70,6 +70,7 @@ class ColumnarSortMergeJoin(
     right: SparkPlan,
     isSkewJoin: Boolean,
     joinTime: SQLMetric,
+    prepareTime: SQLMetric,
     totaltime_sortmergejoin: SQLMetric,
     totalOutputNumRows: SQLMetric,
     sparkConf: SparkConf)
@@ -108,7 +109,7 @@ class ColumnarSortMergeJoin(
         build_cb.column(i).asInstanceOf[ArrowWritableColumnVector].retain())
       inputBatchHolder += build_cb
       prober.evaluate(build_rb)
-      joinTime += NANOSECONDS.toMillis(System.nanoTime() - beforeBuild)
+      prepareTime += NANOSECONDS.toMillis(System.nanoTime() - beforeBuild)
       ConverterUtils.releaseArrowRecordBatch(build_rb)
     }
     if (build_cb != null) {
@@ -128,8 +129,10 @@ class ColumnarSortMergeJoin(
       }
       return res
     }
-
+    val beforeBuild = System.nanoTime()
     probe_iterator = prober.finishByIterator()
+    prepareTime += NANOSECONDS.toMillis(System.nanoTime() - beforeBuild)
+
     new Iterator[ColumnarBatch] {
       override def hasNext: Boolean = {
         if (realstreamIter.hasNext) {
@@ -172,6 +175,7 @@ class ColumnarSortMergeJoin(
       probe_iterator.close()
       probe_iterator = null
     }
+    totaltime_sortmergejoin.merge(prepareTime)
     totaltime_sortmergejoin.merge(joinTime)
   }
 }
@@ -193,10 +197,12 @@ object ColumnarSortMergeJoin extends Logging {
       left: SparkPlan,
       right: SparkPlan,
       _joinTime: SQLMetric,
+      _prepareTime: SQLMetric,
       _totaltime_sortmergejoin: SQLMetric,
       _numOutputRows: SQLMetric,
       _sparkConf: SparkConf): Unit = {
     val joinTime = _joinTime
+    val prepareTime = _prepareTime
     val totaltime_sortmergejoin = _totaltime_sortmergejoin
     val numOutputRows = _numOutputRows
     val sparkConf = _sparkConf
@@ -390,6 +396,7 @@ object ColumnarSortMergeJoin extends Logging {
       left: SparkPlan,
       right: SparkPlan,
       joinTime: SQLMetric,
+      prepareTime: SQLMetric,
       totaltime_sortmergejoin: SQLMetric,
       numOutputRows: SQLMetric,
       sparkConf: SparkConf): String = synchronized {
@@ -403,6 +410,7 @@ object ColumnarSortMergeJoin extends Logging {
       left,
       right,
       joinTime,
+      prepareTime,
       totaltime_sortmergejoin,
       numOutputRows,
       sparkConf)
@@ -428,6 +436,7 @@ object ColumnarSortMergeJoin extends Logging {
       isSkewJoin: Boolean,
       listJars: Seq[String],
       joinTime: SQLMetric,
+      prepareTime: SQLMetric,
       totaltime_sortmergejoin: SQLMetric,
       numOutputRows: SQLMetric,
       sparkConf: SparkConf): ColumnarSortMergeJoin = synchronized {
@@ -441,6 +450,7 @@ object ColumnarSortMergeJoin extends Logging {
       left,
       right,
       joinTime,
+      prepareTime,
       totaltime_sortmergejoin,
       numOutputRows,
       sparkConf)
@@ -465,6 +475,7 @@ object ColumnarSortMergeJoin extends Logging {
       right,
       isSkewJoin,
       joinTime,
+      prepareTime,
       totaltime_sortmergejoin,
       numOutputRows,
       sparkConf)
