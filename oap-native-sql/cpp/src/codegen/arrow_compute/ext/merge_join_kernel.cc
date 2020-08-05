@@ -560,11 +560,26 @@ class ConditionedJoinArraysKernel::Impl {
     std::string shuffle_str;
     if (cond_check) {
       shuffle_str = R"(
+          hasequaled = true;
+          auto tmp = (*idx_to_arrarid_)[std::distance(left_list_->begin(), left_it)];
+            if (ConditionCheck(tmp, i)) {
+              found = true;
+              break;
+            }
+            left_it++;
+    last_match_idx = i;
+    }
           if (!found && hasequaled) {
               )" + left_null_ss.str() +
                     right_valid_ss.str() + R"(
             out_length += 1;
           }
+      )";
+    } else {
+      shuffle_str = R"(
+        left_it++;
+        last_match_idx = i;
+        }
       )";
     }
     return R"(
@@ -576,15 +591,6 @@ class ConditionedJoinArraysKernel::Impl {
   bool found = false;
   bool hasequaled = false;
   while (*left_it == typed_array->GetView(i) && left_it != left_list_->end()) {
-              hasequaled = true;
-          auto tmp = (*idx_to_arrarid_)[std::distance(left_list_->begin(), left_it)];
-            if (ConditionCheck(tmp, i)) {
-              found = true;
-              break;
-            }
-            left_it++;
-    last_match_idx = i;
-    }
     )" +
     shuffle_str
   +R"(
@@ -617,6 +623,7 @@ class ConditionedJoinArraysKernel::Impl {
     std::string shuffle_str;
     if (cond_check) {
       shuffle_str = R"(
+        while (*left_it == typed_array->GetView(i) && left_it != left_list_->end()) {
             auto tmp = (*idx_to_arrarid_)[std::distance(left_list_->begin(), left_it)]; 
               if (ConditionCheck(tmp, i)) {
                 )" + ss.str() +
@@ -627,6 +634,7 @@ class ConditionedJoinArraysKernel::Impl {
       )";
     } else {
       shuffle_str = R"(
+        if (*left_it == typed_array->GetView(i) && left_it != left_list_->end()) {
               )" + ss.str() +
                     R"(
               out_length += 1;
@@ -639,7 +647,7 @@ class ConditionedJoinArraysKernel::Impl {
   }
   
   auto old_it = left_it;
-  while (*left_it == typed_array->GetView(i) && left_it != left_list_->end()) {)" +
+  )" +
     shuffle_str + R"(
       left_it++;
   }
