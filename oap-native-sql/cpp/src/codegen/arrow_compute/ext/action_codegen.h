@@ -159,10 +159,15 @@ class ActionCodeGen {
   }
 
   std::string GetTypedVectorAndBuilderDefineString(std::shared_ptr<arrow::DataType> type,
-                                                   std::string name) {
+                                                   std::string name,
+                                                   bool validity = false) {
     std::stringstream ss;
     auto cache_name = name + "_vector_";
     auto builder_name = name + "_builder_";
+    if (validity) {
+      auto validity_name = name + "validity__vector_";
+      ss << "std::vector<bool> " << validity_name << ";" << std::endl;
+    }
     ss << "std::vector<" << GetCTypeString(type) << "> " << cache_name << ";"
        << std::endl;
     ss << "std::shared_ptr<" << GetTypeString(type, "Builder") << "> " << builder_name
@@ -171,11 +176,17 @@ class ActionCodeGen {
   }
 
   std::string GetTypedVectorAndBuilderPrepareString(std::shared_ptr<arrow::DataType> type,
-                                                    std::string name) {
+                                                    std::string name,
+                                                    bool validity = false) {
     std::stringstream ss;
     auto cache_name_tmp = name + "_vector_tmp";
     auto cache_name = name + "_vector_";
     ss << cache_name << " = " << cache_name_tmp << ";" << std::endl;
+    if (validity) {
+      auto validity_name = name + "validity__vector_";
+      auto validity_name_tmp = name + "validity__vector_tmp";
+      ss << validity_name << " = " << validity_name_tmp << ";" << std::endl;
+    }
     auto builder_name_tmp = name + "_builder";
     auto builder_name = name + "_builder_";
     ss << builder_name << " = std::make_shared<" << GetTypeString(type, "Builder")
@@ -184,12 +195,22 @@ class ActionCodeGen {
   }
 
   std::string GetTypedVectorToBuilderString(std::shared_ptr<arrow::DataType> type,
-                                            std::string name) {
+                                            std::string name, bool validity = false) {
     std::stringstream ss;
     auto cache_name = name + "_vector_";
     auto builder_name = name + "_builder_";
-    ss << "RETURN_NOT_OK(" << builder_name << "->Append(" << cache_name
-       << "[offset_ + count]));" << std::endl;
+    if (validity) {
+      auto validity_name = name + "validity__vector_";
+      ss << "if (" << validity_name << "[offset_ + count]) {" << std::endl;
+      ss << "RETURN_NOT_OK(" << builder_name << "->Append(" << cache_name
+         << "[offset_ + count]));" << std::endl;
+      ss << "} else {" << std::endl;
+      ss << "RETURN_NOT_OK(" << builder_name << "->AppendNull());" << std::endl;
+      ss << "}" << std::endl;
+    } else {
+      ss << "RETURN_NOT_OK(" << builder_name << "->Append(" << cache_name
+         << "[offset_ + count]));" << std::endl;
+    }
     return ss.str();
   }
 
@@ -232,6 +253,7 @@ class GroupByActionCodeGen : public ActionCodeGen {
                        std::shared_ptr<gandiva::Expression> projector) {
     is_key_ = true;
     auto sig_name = "action_groupby_" + name + "_";
+    auto validity_name = "action_groupby_" + name + "_validity_";
     auto data_type = input_fields_list[0]->type();
     auto tmp_name = child_list[0];
     input_field_list_.push_back(input_fields_list[0]);
@@ -240,29 +262,68 @@ class GroupByActionCodeGen : public ActionCodeGen {
       return;
     }
     func_sig_list_.push_back(sig_name);
+    func_sig_list_.push_back(validity_name);
 
     GetTypedArrayCastString(data_type, input_list[0]);
+    typed_input_and_prepare_list_.push_back(std::make_pair(
+        "", ""));  // when there is two name in sig list, we need to make others aligned
+    std::stringstream prepare_codes_ss;
+    prepare_codes_ss << "if (!" << typed_input_and_prepare_list_[0].first
+                     << "->IsNull(cur_id_)) {" << std::endl;
+    if (data_type->id() != arrow::Type::STRING) {
+      prepare_codes_ss << sig_name << ".push_back("
+                       << typed_input_and_prepare_list_[0].first << "->GetView(cur_id_));"
+                       << std::endl;
+      prepare_codes_ss << validity_name << ".push_back(true);" << std::endl;
+    } else {
+      prepare_codes_ss << sig_name << ".push_back("
+                       << typed_input_and_prepare_list_[0].first
+                       << "->GetString(cur_id_));" << std::endl;
+      prepare_codes_ss << validity_name << ".push_back(true);" << std::endl;
+    }
+    prepare_codes_ss << "} else {" << std::endl;
+    if (data_type->id() != arrow::Type::STRING) {
+      prepare_codes_ss << sig_name << ".push_back(0);" << std::endl;
+      prepare_codes_ss << validity_name << ".push_back(false);" << std::endl;
+    } else {
+      prepare_codes_ss << sig_name << ".push_back(\"\");" << std::endl;
+      prepare_codes_ss << validity_name << ".push_back(false);" << std::endl;
+    }
+    prepare_codes_ss << "}" << std::endl;
     func_sig_define_codes_list_.push_back(
         GetTypedVectorDefineString(data_type, sig_name) + ";\n");
+    func_sig_define_codes_list_.push_back(
+        GetTypedVectorDefineString(arrow::boolean(), validity_name) + ";\n");
     on_exists_prepare_codes_list_.push_back("");
-    on_new_prepare_codes_list_.push_back(prepare_codes_str + "\n");
+    on_new_prepare_codes_list_.push_back(prepare_codes_ss.str() + "\n");
     on_exists_codes_list_.push_back("");
-    on_new_codes_list_.push_back(sig_name + ".push_back(" + tmp_name + ");");
+    on_new_codes_list_.push_back("");
+    on_finish_codes_list_.push_back("");
+    on_exists_codes_list_.push_back("");
+    on_new_codes_list_.push_back("");
     on_finish_codes_list_.push_back("");
 
     finish_variable_list_.push_back(sig_name);
+    finish_variable_list_.push_back(validity_name);
     finish_var_parameter_codes_list_.push_back(
         GetTypedVectorDefineString(data_type, sig_name + "_vector_tmp", true));
+    finish_var_parameter_codes_list_.push_back(GetTypedVectorDefineString(
+        arrow::boolean(), validity_name + "_vector_tmp", true));
     finish_var_define_codes_list_.push_back(
-        GetTypedVectorAndBuilderDefineString(data_type, sig_name));
+        GetTypedVectorAndBuilderDefineString(data_type, sig_name, true));
     finish_var_prepare_codes_list_.push_back(
-        GetTypedVectorAndBuilderPrepareString(data_type, sig_name));
+        GetTypedVectorAndBuilderPrepareString(data_type, sig_name, true));
     finish_var_to_builder_codes_list_.push_back(
-        GetTypedVectorToBuilderString(data_type, sig_name));
+        GetTypedVectorToBuilderString(data_type, sig_name, true));
     finish_var_to_array_codes_list_.push_back(
         GetTypedResultToArrayString(data_type, sig_name));
     finish_var_array_codes_list_.push_back(
         GetTypedResultArrayString(data_type, sig_name));
+    finish_var_define_codes_list_.push_back("");
+    finish_var_prepare_codes_list_.push_back("");
+    finish_var_to_builder_codes_list_.push_back("");
+    finish_var_to_array_codes_list_.push_back("");
+    finish_var_array_codes_list_.push_back("");
   }
 };  // namespace extra
 
