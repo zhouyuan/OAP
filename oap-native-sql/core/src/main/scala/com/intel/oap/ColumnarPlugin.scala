@@ -219,8 +219,20 @@ case class ColumnarPreOverrides(conf: SparkConf) extends Rule[SparkPlan] {
         ColumnarCustomShuffleReaderExec(plan.child, plan.partitionSpecs, plan.description))
 
     case p =>
-      val children = p.children.map(replaceWithColumnarPlan)
-      logDebug(s"Columnar Processing for ${p.getClass} is not currently supported.")
+      val children = p.children.map(child =>
+        child match {
+          case project: ProjectExec =>
+            val newChild = replaceWithColumnarPlan(project.child)
+            if (newChild.supportsColumnar) {
+              replaceWithColumnarPlan(child)
+            } else {
+              val newProject = project.withNewChildren(List(newChild))
+              newProject
+            }
+          case _ =>
+            replaceWithColumnarPlan(child)
+        })
+      logDebug(s"Columnar Processing for ${p.getClass} is currently not supported.")
       p.withNewChildren(children)
   }
 
