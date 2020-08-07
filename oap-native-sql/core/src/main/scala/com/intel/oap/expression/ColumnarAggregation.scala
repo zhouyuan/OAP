@@ -187,11 +187,16 @@ class ColumnarAggregation(
   })
   val aggregateInputSchema = new Schema(allAggregateInputFieldList.asJava)
   val aggregateResultSchema = new Schema(aggregateResultFieldList.asJava)
-  var aggregator = new ExpressionEvaluator()
-  aggregator.build(aggregateInputSchema, expressionTree.asJava, true)
-  aggregator.setReturnFields(aggregateResultSchema)
-  logInfo(s"native aggregate input is $aggregateInputSchema,\noutput is $aggregateResultSchema")
 
+  var aggregator: ExpressionEvaluator = _
+  if (allAggregateInputFieldList.size > 0) {
+    aggregator = new ExpressionEvaluator()
+    aggregator.build(aggregateInputSchema, expressionTree.asJava, true)
+    aggregator.setReturnFields(aggregateResultSchema)
+    logInfo(s"native aggregate input is $aggregateInputSchema,\noutput is $aggregateResultSchema")
+  } else {
+    null
+  }
   // 6. map grouping and aggregate result to FinalResult
   var aggregateToResultProjector = ColumnarProjection.create(allAggregateResultAttributes, resultExpressions, skipLiteral = false, renameResult = true)
   val aggregateToResultOrdinalList = aggregateToResultProjector.getOrdinalList
@@ -304,6 +309,28 @@ class ColumnarAggregation(
       val resultColumnVectors =
         ArrowWritableColumnVector.allocateColumns(0, resultStructType).toArray
       return new ColumnarBatch(resultColumnVectors.map(_.asInstanceOf[ColumnVector]), 0)
+    } else if (aggregator == null){
+      //TODO: add an special case when this hash aggr is doing countLiteral only
+      System.out.println(s"${expressionTree.map(expr => s"${expr.toProtobuf}").toList}, processedNumRows is ${processedNumRows}")
+      val doCountLiteral: Boolean = expressionTree.map(expr => s"${expr.toProtobuf}").filter(_.contains("countLiteral")).size == 1
+      if (doCountLiteral) {
+        val resultColumnVectors =
+          ArrowWritableColumnVector.allocateColumns(0, resultStructType).toArray
+        (resultColumnVectors zip resultAttributes).foreach{case(v, attr) => {
+          val numRows = attr.dataType match {
+            case t: IntegerType =>
+              processedNumRows.asInstanceOf[Number].intValue
+            case t: LongType =>
+              processedNumRows.asInstanceOf[Number].longValue
+          }
+          v.put(0, numRows)
+        }}
+        return new ColumnarBatch(resultColumnVectors.map(_.asInstanceOf[ColumnVector]), 1)
+      } else {
+        val resultColumnVectors =
+          ArrowWritableColumnVector.allocateColumns(0, resultStructType).toArray
+        return new ColumnarBatch(resultColumnVectors.map(_.asInstanceOf[ColumnVector]), 0)
+      }
     } else {
       val finalResultRecordBatch = if (resultIter != null) {
         resultIter.next()
@@ -363,7 +390,9 @@ class ColumnarAggregation(
   
             if (cb.numRows > 0) {
               val beforeEval = System.nanoTime()
-              updateAggregationResult(cb)
+              if (aggregator != null) {
+                updateAggregationResult(cb)
+              }
               eval_elapse += System.nanoTime() - beforeEval
               processedNumRows += cb.numRows
             }
