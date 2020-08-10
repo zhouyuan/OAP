@@ -486,7 +486,8 @@ public final class ArrowWritableColumnVector extends WritableColumnVector {
   }
 
   public void appendString(byte[] value, int srcIndex, int count) {
-    writer.appendBytes(value, srcIndex, count);
+    writer.setBytes(elementsAppended, count, value, srcIndex);
+    elementsAppended++;
   }
 
   @Override
