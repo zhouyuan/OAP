@@ -532,6 +532,8 @@ class SumCountActionCodeGen : public ActionCodeGen {
     }
     prepare_codes_ss << "}" << std::endl;
 
+    // FIXME: spark expect double as sum result type, quick fix here
+    data_type = arrow::float64();
     func_sig_define_codes_list_.push_back(
         GetTypedVectorDefineString(data_type, sig_name) + ";\n");
     on_exists_prepare_codes_list_.push_back(prepare_codes_ss.str() + "\n");
