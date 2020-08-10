@@ -146,7 +146,8 @@ class HashAggregateKernel::Impl {
   std::vector<std::pair<std::shared_ptr<arrow::Field>, std::string>> key_list_;
 
   arrow::Status PrepareActionCodegen() {
-    std::vector<gandiva::ExpressionPtr> expr_list;
+    std::vector<std::pair<gandiva::ExpressionPtr, std::shared_ptr<ActionCodeGen>>>
+        expr_list;
     std::vector<gandiva::FieldPtr> output_field_list;
     for (auto func_node : action_list_) {
       std::shared_ptr<CodeGenNodeVisitor> codegen_visitor;
@@ -162,7 +163,7 @@ class HashAggregateKernel::Impl {
       if (action_codegen->IsPreProjected()) {
         auto expr = action_codegen->GetProjectorExpr();
         output_field_list.push_back(expr->result());
-        expr_list.push_back(expr);
+        expr_list.push_back(std::make_pair(expr, action_codegen));
       }
     }
     RETURN_NOT_OK(GetGroupKey(action_impl_list_, &key_list_));
@@ -173,13 +174,22 @@ class HashAggregateKernel::Impl {
       }
       auto expr = GetConcatedKernel(field_list);
       output_field_list.push_back(expr->result());
-      expr_list.push_back(expr);
+      expr_list.push_back(std::make_pair(expr, nullptr));
     }
     if (!expr_list.empty()) {
       original_input_schema_ = arrow::schema(input_field_list_);
       projected_input_schema_ = arrow::schema(output_field_list);
+      // chendi: We need to use index in project output to replace project name
+      std::vector<gandiva::ExpressionPtr> _expr_list;
+      int index = 0;
+      for (auto pair : expr_list) {
+        _expr_list.push_back(pair.first);
+        if (pair.second != nullptr) {
+          pair.second->WithProjectIndex(index++);
+        }
+      }
       auto configuration = gandiva::ConfigurationBuilder().DefaultConfiguration();
-      RETURN_NOT_OK(gandiva::Projector::Make(original_input_schema_, expr_list,
+      RETURN_NOT_OK(gandiva::Projector::Make(original_input_schema_, _expr_list,
                                              configuration, &projector_));
     }
     return arrow::Status::OK();

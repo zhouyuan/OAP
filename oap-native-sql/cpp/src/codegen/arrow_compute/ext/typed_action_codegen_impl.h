@@ -55,12 +55,18 @@ class TypedActionCodeGenImpl {
       std::shared_ptr<gandiva::Node> func_node,
       std::vector<std::shared_ptr<arrow::Field>> original_fields_list) {
     std::stringstream signature_ss;
-    std::shared_ptr<CodeGenRegister> node_tmp;
-    RETURN_NOT_OK(MakeCodeGenRegister(func_node, &node_tmp));
-    signature_ss << std::hex << std::hash<std::string>{}(node_tmp->GetFingerprint());
-    auto name = "projection_" + signature_ss.str();
-    for (auto index : input_index_list_) {
-      name += "_" + std::to_string(index);
+    std::string name;
+    if (input_index_list_.size() == 0) {
+      signature_ss << std::hex << std::hash<std::string>{}(func_node->ToString());
+      name = "projection_" + signature_ss.str();
+    } else {
+      std::shared_ptr<CodeGenRegister> node_tmp;
+      RETURN_NOT_OK(MakeCodeGenRegister(func_node, &node_tmp));
+      signature_ss << std::hex << std::hash<std::string>{}(node_tmp->GetFingerprint());
+      name = "projection_" + signature_ss.str();
+      for (auto index : input_index_list_) {
+        name += "_" + std::to_string(index);
+      }
     }
     auto res_field = arrow::field(name, func_node->return_type());
     named_projector_ = gandiva::TreeExprBuilder::MakeExpression(func_node, res_field);
