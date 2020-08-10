@@ -111,7 +111,6 @@ TEST(TestArrowComputeMergeJoin, JoinTestUsingInnerJoin) {
 
   ////////////////////// evaluate //////////////////////
   for (auto batch : table_0) {
-    std::cout << "eval batch\n";
     ASSERT_NOT_OK(expr_probe->evaluate(batch, &dummy_result_batches));
   }
   ASSERT_NOT_OK(expr_probe->finish(&probe_result_iterator));
@@ -628,6 +627,116 @@ TEST(TestArrowComputeMergeJoin, JoinTestUsingInnerJoinWithCondition) {
   ASSERT_NOT_OK(expr_probe->finish(&probe_result_iterator));
 
   for (int i = 0; i < table_1.size(); i++) {
+    auto right_batch = table_1[i];
+
+    std::shared_ptr<arrow::RecordBatch> result_batch;
+    std::vector<std::shared_ptr<arrow::Array>> input;
+    for (int i = 0; i < right_batch->num_columns(); i++) {
+      input.push_back(right_batch->column(i));
+    }
+
+    ASSERT_NOT_OK(probe_result_iterator->Process(input, &result_batch));
+    ASSERT_NOT_OK(Equals(*(expected_table[i]).get(), *result_batch.get()));
+  }
+}
+
+TEST(TestArrowComputeMergeJoin, JoinTestWithTwoKeysUsingInnerJoin) {
+  ////////////////////// prepare expr_vector ///////////////////////
+  auto table0_f0 = field("table0_f0", utf8());
+  auto table0_f1 = field("table0_f1", utf8());
+  auto table0_f2 = field("table0_f2", int32());
+  auto table1_f0 = field("table1_f0", utf8());
+  auto table1_f1 = field("table1_f1", utf8());
+
+  auto n_left = TreeExprBuilder::MakeFunction(
+      "codegen_left_schema",
+      {TreeExprBuilder::MakeField(table0_f0), TreeExprBuilder::MakeField(table0_f1),
+       TreeExprBuilder::MakeField(table0_f2)},
+      uint32());
+  auto n_right = TreeExprBuilder::MakeFunction(
+      "codegen_right_schema",
+      {TreeExprBuilder::MakeField(table1_f0), TreeExprBuilder::MakeField(table1_f1)},
+      uint32());
+  auto f_res = field("res", uint32());
+
+  auto n_left_key = TreeExprBuilder::MakeFunction(
+      "codegen_left_key_schema",
+      {TreeExprBuilder::MakeField(table0_f0), TreeExprBuilder::MakeField(table0_f1)},
+      uint32());
+  auto n_right_key = TreeExprBuilder::MakeFunction(
+      "codegen_right_key_schema",
+      {TreeExprBuilder::MakeField(table1_f0), TreeExprBuilder::MakeField(table1_f1)},
+      uint32());
+  auto n_probeArrays = TreeExprBuilder::MakeFunction("conditionedJoinArraysInner",
+                                                     {n_left_key, n_right_key}, uint32());
+  auto n_codegen_probe = TreeExprBuilder::MakeFunction(
+      "codegen_withTwoInputs", {n_probeArrays, n_left, n_right}, uint32());
+  auto probeArrays_expr = TreeExprBuilder::MakeExpression(n_codegen_probe, f_res);
+
+  auto schema_table_0 = arrow::schema({table0_f0, table0_f1, table0_f2});
+  auto schema_table_1 = arrow::schema({table1_f0, table1_f1});
+  auto schema_table =
+      arrow::schema({table0_f0, table0_f1, table0_f2, table1_f0, table1_f1});
+
+  auto f_res_utf = field("res", utf8());
+
+  ///////////////////// Calculation //////////////////
+  std::shared_ptr<CodeGenerator> expr_probe;
+  ASSERT_NOT_OK(CreateCodeGenerator(
+      schema_table_0, {probeArrays_expr},
+      {table0_f0, table0_f1, table0_f2, table1_f0, table1_f1}, &expr_probe, true));
+
+  std::shared_ptr<arrow::RecordBatch> input_batch;
+
+  std::vector<std::shared_ptr<arrow::RecordBatch>> dummy_result_batches;
+  std::shared_ptr<ResultIterator<arrow::RecordBatch>> probe_result_iterator;
+
+  std::vector<std::shared_ptr<arrow::RecordBatch>> table_0;
+  std::vector<std::shared_ptr<arrow::RecordBatch>> table_1;
+
+  std::vector<std::string> input_data_string = {
+      R"(["a", "b", "c", "e"])", R"(["A", "B", "C", "E"])", "[10, 3, 1, 2]"};
+  MakeInputBatch(input_data_string, schema_table_0, &input_batch);
+  table_0.push_back(input_batch);
+
+  input_data_string = {R"(["f", "j", "n"])", R"(["F", "J", "N"])",
+                       "[12, 5, 8]"};
+  MakeInputBatch(input_data_string, schema_table_0, &input_batch);
+  table_0.push_back(input_batch);
+
+  std::vector<std::string> input_data_2_string = {R"(["a", "b", "c", "d", "e", "f"])",
+                                                  R"(["A", "B", "C", "D", "E", "F"])"};
+  MakeInputBatch(input_data_2_string, schema_table_1, &input_batch);
+  table_1.push_back(input_batch);
+
+  input_data_2_string = {R"(["i", "j", "k", "l", "m", "n"])",
+                         R"(["I", "J", "K", "L", "M", "N"])"};
+  MakeInputBatch(input_data_2_string, schema_table_1, &input_batch);
+  table_1.push_back(input_batch);
+
+  //////////////////////// data prepared /////////////////////////
+
+  std::vector<std::shared_ptr<RecordBatch>> expected_table;
+  std::shared_ptr<arrow::RecordBatch> expected_result;
+  std::vector<std::string> expected_result_string = {
+      R"(["a", "b", "c", "e", "f"])", R"(["A", "B", "C", "E", "F"])", "[10, 3, 1, 2, 12]",
+      R"(["a", "b", "c", "e", "f"])", R"(["A", "B", "C", "E", "F"])"};
+  MakeInputBatch(expected_result_string, schema_table, &expected_result);
+  expected_table.push_back(expected_result);
+
+  expected_result_string = {R"(["j","n"])", R"(["J", "N"])", "[5, 8]",
+                            R"(["j", "n"])", R"(["J", "N"])"};
+  MakeInputBatch(expected_result_string, schema_table, &expected_result);
+  expected_table.push_back(expected_result);
+
+  ////////////////////// evaluate //////////////////////
+  for (auto batch : table_0) {
+    ASSERT_NOT_OK(expr_probe->evaluate(batch, &dummy_result_batches));
+  }
+  ASSERT_NOT_OK(expr_probe->finish(&probe_result_iterator));
+
+  for (int i = 0; i < 2; i++) {
+    
     auto right_batch = table_1[i];
 
     std::shared_ptr<arrow::RecordBatch> result_batch;
