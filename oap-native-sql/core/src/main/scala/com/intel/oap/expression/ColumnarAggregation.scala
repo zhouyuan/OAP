@@ -142,6 +142,8 @@ class ColumnarAggregation(
         val fieldList = if (arg_size > 0) {
           internalExpressionList.map(projectExpr => {
             val attr = ConverterUtils.getResultAttrFromExpr(projectExpr, s"res_$index")
+            if (attr.dataType.isInstanceOf[DecimalType])
+              throw new UnsupportedOperationException(s"Decimal type is not supported in ColumnarAggregation.")
             Field.nullable(s"${attr.name}#${attr.exprId.id}", CodeGeneration.getResultType(attr.dataType))
           })
         } else {
@@ -172,6 +174,8 @@ class ColumnarAggregation(
         non_partial_field_id += arg_size
         val fieldList = ordinalList.map(i => {
           val attr = originalInputAttributes(i)
+          if (attr.dataType.isInstanceOf[DecimalType])
+            throw new UnsupportedOperationException(s"Decimal type is not supported in ColumnarAggregation.")
           Field.nullable(s"${attr.name}#${attr.exprId.id}", CodeGeneration.getResultType(attr.dataType))
         })
         ordinalList.foreach{i => {
