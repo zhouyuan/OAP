@@ -136,6 +136,8 @@ if(TESTS)
   find_package(GTest)
 # ----------------------------------------------------------------------
 # Google gtest
+set(BUILD_OUTPUT_ROOT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/build/release/")
+
 macro(build_gtest)
   message(STATUS "Building gtest from source")
   set(GTEST_VENDORED TRUE)
@@ -150,7 +152,7 @@ macro(build_gtest)
   set(GTEST_PREFIX "${CMAKE_CURRENT_BINARY_DIR}/googletest_ep-prefix")
   set(GTEST_INCLUDE_DIR "${GTEST_PREFIX}/include")
 
-  set(_GTEST_RUNTIME_DIR ${BUILD_OUTPUT_ROOT_DIRECTORY})
+  set(_GTEST_RUNTIME_DIR "${BUILD_OUTPUT_ROOT_DIRECTORY}")
 
   if(MSVC)
     set(_GTEST_IMPORTED_TYPE IMPORTED_IMPLIB)
@@ -235,7 +237,11 @@ endmacro()
 
 macro(package_add_test TESTNAME)
   add_executable(${TESTNAME} ${ARGN})
-  target_link_libraries(${TESTNAME} gtest gmock gtest_main spark_columnar_jni ${PROTOBUF_LIBRARY} ${CMAKE_THREAD_LIBS_INIT})
+if(BUILD_PROTOBUF)
+  target_link_libraries(${TESTNAME} GTest::gtest GTest::gmock GTest::gtest_main spark_columnar_jni protobuf::libprotobuf ${CMAKE_THREAD_LIBS_INIT})
+else()
+  target_link_libraries(${TESTNAME} GTest::gtest GTest::gmock GTest::gtest_main spark_columnar_jni ${PROTOBUF_LIBRARY} ${CMAKE_THREAD_LIBS_INIT})
+endif()
   target_include_directories(${TESTNAME} PUBLIC ${source_root_directory})
   gtest_discover_tests(${TESTNAME}
     WORKING_DIRECTORY ${PROJECT_DIR}
