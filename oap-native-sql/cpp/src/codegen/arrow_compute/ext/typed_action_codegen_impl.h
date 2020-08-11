@@ -177,6 +177,14 @@ class TypedActionCodeGenImpl {
       *action_codegen = std::make_shared<SumCountMergeActionCodeGen>(
           name, child_list_, input_list_, input_fields_list_, codes_ss_.str(),
           named_projector_);
+    } else if (action_name_.compare("action_stddev_samp_partial") == 0) {
+      std::string name;
+      if (!input_index_list_.empty()) {
+        name = std::to_string(input_index_list_[0]);
+      }
+      *action_codegen = std::make_shared<StddevSampPartialActionCodeGen>(
+          name, child_list_, input_list_, input_fields_list_, codes_ss_.str(),
+          named_projector_);
     } else {
       std::cout << "action_name " << action_name_ << " is unrecognized" << std::endl;
       return arrow::Status::Invalid("Invalid action_name ", action_name_);

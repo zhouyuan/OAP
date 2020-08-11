@@ -424,6 +424,21 @@ object ColumnarGroupbyHashAggregation extends Logging {
               List(inputAttrQueue.dequeue).map(attr => getColumnarFuncNode(attr))
           }
         TreeBuilder.makeFunction("action_min", childrenColumnarFuncNodeList.asJava, resultType)
+      case StddevSamp(_) =>
+        mode match {
+          case Partial | PartialMerge =>
+            val childrenColumnarFuncNodeList =
+              aggregateFunc.children.toList.map(expr => getColumnarFuncNode(expr))
+            TreeBuilder.makeFunction("action_stddev_samp_partial",
+              childrenColumnarFuncNodeList.asJava, resultType)
+          case Final =>
+            val childrenColumnarFuncNodeList =
+              List(inputAttrQueue.dequeue, inputAttrQueue.dequeue, inputAttrQueue.dequeue).map(attr =>
+                getColumnarFuncNode(attr))
+            logInfo(s"childrenColumnarFuncNodeList is ${childrenColumnarFuncNodeList}")
+            TreeBuilder.makeFunction("action_stddev_samp_final",
+              childrenColumnarFuncNodeList.asJava, resultType)
+        }
       case other =>
         throw new UnsupportedOperationException(s"not currently supported: $other.")
     }
@@ -506,6 +521,24 @@ object ColumnarGroupbyHashAggregation extends Logging {
             res_index += 1
           }
           case _ => {
+            aggregateAttr += aggregateAttributeList(res_index)
+            res_index += 1
+          }
+        }
+        case StddevSamp(_) => mode match {
+          case Partial => {
+            val stddevSamp = aggregateFunc.asInstanceOf[StddevSamp]
+            val aggBufferAttr = stddevSamp.inputAggBufferAttributes
+            for (index <- 0 until aggBufferAttr.size) {
+              val attr = ConverterUtils.getAttrFromExpr(aggBufferAttr(index))
+              aggregateAttr += attr
+            }
+            res_index += 3
+          }
+          case PartialMerge => {
+            throw new UnsupportedOperationException("stddev_samp PartialMerge is not supported.")
+          }
+          case Final => {
             aggregateAttr += aggregateAttributeList(res_index)
             res_index += 1
           }
