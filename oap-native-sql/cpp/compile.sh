@@ -11,7 +11,7 @@ if [ -d build ]; then
 fi
 mkdir build
 cd build
-cmake ..
+cmake .. -DTESTS=1
 make
 
 set +eu
