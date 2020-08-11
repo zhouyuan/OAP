@@ -229,6 +229,14 @@ case class ColumnarPreOverrides(conf: SparkConf) extends Rule[SparkPlan] {
               val newProject = project.withNewChildren(List(newChild))
               newProject
             }
+          case filter: FilterExec =>
+            val newChild = replaceWithColumnarPlan(filter.child)
+            if (newChild.supportsColumnar) {
+              replaceWithColumnarPlan(child)
+            } else {
+              val newFilter = filter.withNewChildren(List(newChild))
+              newFilter
+            }
           case _ =>
             replaceWithColumnarPlan(child)
         })
