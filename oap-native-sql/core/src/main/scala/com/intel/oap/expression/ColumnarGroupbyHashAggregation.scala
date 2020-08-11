@@ -426,16 +426,17 @@ object ColumnarGroupbyHashAggregation extends Logging {
         TreeBuilder.makeFunction("action_min", childrenColumnarFuncNodeList.asJava, resultType)
       case StddevSamp(_) =>
         mode match {
-          case Partial | PartialMerge =>
+          case Partial =>
             val childrenColumnarFuncNodeList =
               aggregateFunc.children.toList.map(expr => getColumnarFuncNode(expr))
             TreeBuilder.makeFunction("action_stddev_samp_partial",
               childrenColumnarFuncNodeList.asJava, resultType)
+          case PartialMerge =>
+            throw new UnsupportedOperationException("stddev_samp PartialMerge is not supported.")
           case Final =>
             val childrenColumnarFuncNodeList =
               List(inputAttrQueue.dequeue, inputAttrQueue.dequeue, inputAttrQueue.dequeue).map(attr =>
                 getColumnarFuncNode(attr))
-            logInfo(s"childrenColumnarFuncNodeList is ${childrenColumnarFuncNodeList}")
             TreeBuilder.makeFunction("action_stddev_samp_final",
               childrenColumnarFuncNodeList.asJava, resultType)
         }
