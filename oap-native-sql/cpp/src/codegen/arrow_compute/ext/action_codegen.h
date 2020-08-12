@@ -62,9 +62,7 @@ class ActionCodeGen {
   }
   virtual arrow::Status WithProjectIndex(int index) { return arrow::Status::OK(); }
   std::shared_ptr<gandiva::Expression> GetProjectorExpr() { return projector_expr_; }
-  std::vector<std::shared_ptr<arrow::Field>> GetInputFieldList() {
-    return input_field_list_;
-  }
+  std::vector<gandiva::NodePtr> GetInputFieldList() { return input_expr_list_; }
   std::vector<std::string> GetInputDataNameList() { return input_data_list_; }
   std::vector<std::string> GetVariablesList() { return func_sig_list_; }
   std::vector<std::string> GetVariablesDefineList() {
@@ -105,7 +103,7 @@ class ActionCodeGen {
  protected:
   bool is_key_ = false;
   std::shared_ptr<gandiva::Expression> projector_expr_;
-  std::vector<std::shared_ptr<arrow::Field>> input_field_list_;
+  std::vector<gandiva::NodePtr> input_expr_list_;
   std::vector<std::string> input_data_list_;
   std::vector<std::pair<std::string, std::string>> typed_input_and_prepare_list_;
   std::vector<std::string> func_sig_list_;
@@ -148,15 +146,18 @@ class ActionCodeGen {
     ss << "auto " << cached_name << " = std::make_shared<" << GetTypeString(type, "Array")
        << ">(" << name << ");";
     typed_input_and_prepare_list_.push_back(std::make_pair(cached_name, ss.str()));
+    input_data_list_.push_back(name);
   }
 
   void GetTypedArrayCastFromProjectedString(std::shared_ptr<arrow::DataType> type,
                                             std::string name) {
     std::stringstream ss;
     auto cached_name = "typed_projected_" + name;
+    auto array_name = "projected_batch->column(" + name + ")";
     ss << "auto " << cached_name << " = std::make_shared<" << GetTypeString(type, "Array")
-       << ">(projected_batch->column(" << name << "));";
+       << ">(" << array_name << ");";
     typed_input_and_prepare_list_.push_back(std::make_pair(cached_name, ss.str()));
+    input_data_list_.push_back(array_name);
   }
 
   void GetTypedArrayCastByNameString(std::shared_ptr<arrow::DataType> type,
@@ -262,80 +263,116 @@ class GroupByActionCodeGen : public ActionCodeGen {
                        std::string prepare_codes_str,
                        std::shared_ptr<gandiva::Expression> projector) {
     is_key_ = true;
-    auto sig_name = "action_groupby_" + name + "_";
-    auto validity_name = "action_groupby_" + name + "_validity_";
-    auto data_type = input_fields_list[0]->type();
-    auto tmp_name = child_list[0];
-    input_field_list_.push_back(input_fields_list[0]);
-    input_data_list_.push_back(input_list[0]);
-    if (keep == false) {
-      return;
-    }
-    func_sig_list_.push_back(sig_name);
-    func_sig_list_.push_back(validity_name);
-
-    GetTypedArrayCastString(data_type, input_list[0]);
-    typed_input_and_prepare_list_.push_back(std::make_pair(
-        "", ""));  // when there is two name in sig list, we need to make others aligned
-    std::stringstream prepare_codes_ss;
-    prepare_codes_ss << "if (!" << typed_input_and_prepare_list_[0].first
-                     << "->IsNull(cur_id_)) {" << std::endl;
-    if (data_type->id() != arrow::Type::STRING) {
-      prepare_codes_ss << sig_name << ".push_back("
-                       << typed_input_and_prepare_list_[0].first << "->GetView(cur_id_));"
-                       << std::endl;
-      prepare_codes_ss << validity_name << ".push_back(true);" << std::endl;
+    std::shared_ptr<arrow::DataType> in_data_type;
+    if (projector) {
+      // if projection pre-defined, use projection input
+      auto _type = projector->result()->type();
+      in_data_type = _type;
+      projector_expr_ = projector;
     } else {
-      prepare_codes_ss << sig_name << ".push_back("
-                       << typed_input_and_prepare_list_[0].first
-                       << "->GetString(cur_id_));" << std::endl;
-      prepare_codes_ss << validity_name << ".push_back(true);" << std::endl;
+      in_data_type = input_fields_list[0]->type();
     }
-    prepare_codes_ss << "} else {" << std::endl;
-    if (data_type->id() != arrow::Type::STRING) {
-      prepare_codes_ss << sig_name << ".push_back(0);" << std::endl;
-      prepare_codes_ss << validity_name << ".push_back(false);" << std::endl;
-    } else {
-      prepare_codes_ss << sig_name << ".push_back(\"\");" << std::endl;
-      prepare_codes_ss << validity_name << ".push_back(false);" << std::endl;
-    }
-    prepare_codes_ss << "}" << std::endl;
-    func_sig_define_codes_list_.push_back(
-        GetTypedVectorDefineString(data_type, sig_name) + ";\n");
-    func_sig_define_codes_list_.push_back(
-        GetTypedVectorDefineString(arrow::boolean(), validity_name) + ";\n");
-    on_exists_prepare_codes_list_.push_back("");
-    on_new_prepare_codes_list_.push_back(prepare_codes_ss.str() + "\n");
-    on_exists_codes_list_.push_back("");
-    on_new_codes_list_.push_back("");
-    on_finish_codes_list_.push_back("");
-    on_exists_codes_list_.push_back("");
-    on_new_codes_list_.push_back("");
-    on_finish_codes_list_.push_back("");
 
-    finish_variable_list_.push_back(sig_name);
-    finish_variable_list_.push_back(validity_name);
-    finish_var_parameter_codes_list_.push_back(
-        GetTypedVectorDefineString(data_type, sig_name + "_vector_tmp", true));
-    finish_var_parameter_codes_list_.push_back(GetTypedVectorDefineString(
-        arrow::boolean(), validity_name + "_vector_tmp", true));
-    finish_var_define_codes_list_.push_back(
-        GetTypedVectorAndBuilderDefineString(data_type, sig_name, true));
-    finish_var_prepare_codes_list_.push_back(
-        GetTypedVectorAndBuilderPrepareString(data_type, sig_name, true));
-    finish_var_to_builder_codes_list_.push_back(
-        GetTypedVectorToBuilderString(data_type, sig_name, true));
-    finish_var_to_array_codes_list_.push_back(
-        GetTypedResultToArrayString(data_type, sig_name));
-    finish_var_array_codes_list_.push_back(
-        GetTypedResultArrayString(data_type, sig_name));
-    finish_var_define_codes_list_.push_back("");
-    finish_var_prepare_codes_list_.push_back("");
-    finish_var_to_builder_codes_list_.push_back("");
-    finish_var_to_array_codes_list_.push_back("");
-    finish_var_array_codes_list_.push_back("");
+    produce_ = [this, in_data_type, input_list, input_fields_list,
+                keep](std::string name) {
+      auto data_type = in_data_type;
+      std::string sig_name;
+      std::string validity_name;
+      if (projector_expr_) {
+        sig_name = "action_groupby_projected_" + name + "_";
+        validity_name = "action_groupby_projected_" + name + "_validity_";
+        GetTypedArrayCastFromProjectedString(data_type, name);
+        input_expr_list_.push_back(
+            projector_expr_->root());  // this line is used to gen hash for multiple keys
+
+      } else {
+        sig_name = "action_groupby_" + name + "_";
+        validity_name = "action_groupby_" + name + "_validity_";
+        GetTypedArrayCastString(data_type, input_list[0]);
+        input_expr_list_.push_back(gandiva::TreeExprBuilder::MakeField(
+            input_fields_list[0]));  // this line is used to gen hash for multiple keys
+      }
+      typed_input_and_prepare_list_.push_back(std::make_pair(
+          "", ""));  // when there is two name in sig list, we need to make others aligned
+
+      if (keep == false) {
+        return;
+      }
+      func_sig_list_.push_back(sig_name);
+      func_sig_list_.push_back(validity_name);
+      auto tmp_name = typed_input_and_prepare_list_[0].first + "_tmp";
+
+      std::stringstream prepare_codes_ss;
+      prepare_codes_ss << "if (!" << typed_input_and_prepare_list_[0].first
+                       << "->IsNull(cur_id_)) {" << std::endl;
+      if (data_type->id() != arrow::Type::STRING) {
+        prepare_codes_ss << sig_name << ".push_back("
+                         << typed_input_and_prepare_list_[0].first
+                         << "->GetView(cur_id_));" << std::endl;
+        prepare_codes_ss << validity_name << ".push_back(true);" << std::endl;
+      } else {
+        prepare_codes_ss << sig_name << ".push_back("
+                         << typed_input_and_prepare_list_[0].first
+                         << "->GetString(cur_id_));" << std::endl;
+        prepare_codes_ss << validity_name << ".push_back(true);" << std::endl;
+      }
+      prepare_codes_ss << "} else {" << std::endl;
+      if (data_type->id() != arrow::Type::STRING) {
+        prepare_codes_ss << sig_name << ".push_back(0);" << std::endl;
+        prepare_codes_ss << validity_name << ".push_back(false);" << std::endl;
+      } else {
+        prepare_codes_ss << sig_name << ".push_back(\"\");" << std::endl;
+        prepare_codes_ss << validity_name << ".push_back(false);" << std::endl;
+      }
+      prepare_codes_ss << "}" << std::endl;
+      func_sig_define_codes_list_.push_back(
+          GetTypedVectorDefineString(data_type, sig_name) + ";\n");
+      func_sig_define_codes_list_.push_back(
+          GetTypedVectorDefineString(arrow::boolean(), validity_name) + ";\n");
+      on_exists_prepare_codes_list_.push_back("");
+      on_new_prepare_codes_list_.push_back(prepare_codes_ss.str() + "\n");
+      on_exists_codes_list_.push_back("");
+      on_new_codes_list_.push_back("");
+      on_finish_codes_list_.push_back("");
+      on_exists_codes_list_.push_back("");
+      on_new_codes_list_.push_back("");
+      on_finish_codes_list_.push_back("");
+
+      finish_variable_list_.push_back(sig_name);
+      finish_variable_list_.push_back(validity_name);
+      finish_var_parameter_codes_list_.push_back(
+          GetTypedVectorDefineString(data_type, sig_name + "_vector_tmp", true));
+      finish_var_parameter_codes_list_.push_back(GetTypedVectorDefineString(
+          arrow::boolean(), validity_name + "_vector_tmp", true));
+      finish_var_define_codes_list_.push_back(
+          GetTypedVectorAndBuilderDefineString(data_type, sig_name, true));
+      finish_var_prepare_codes_list_.push_back(
+          GetTypedVectorAndBuilderPrepareString(data_type, sig_name, true));
+      finish_var_to_builder_codes_list_.push_back(
+          GetTypedVectorToBuilderString(data_type, sig_name, true));
+      finish_var_to_array_codes_list_.push_back(
+          GetTypedResultToArrayString(data_type, sig_name));
+      finish_var_array_codes_list_.push_back(
+          GetTypedResultArrayString(data_type, sig_name));
+      finish_var_define_codes_list_.push_back("");
+      finish_var_prepare_codes_list_.push_back("");
+      finish_var_to_builder_codes_list_.push_back("");
+      finish_var_to_array_codes_list_.push_back("");
+      finish_var_array_codes_list_.push_back("");
+    };
+    if (!projector) {
+      produce_(name);
+    }
   }
-};  // namespace extra
+
+  arrow::Status WithProjectIndex(int index) override {
+    produce_(std::to_string(index));
+    return arrow::Status::OK();
+  }
+
+ private:
+  std::function<void(std::string)> produce_;
+};
 
 class SumActionCodeGen : public ActionCodeGen {
  public:
@@ -529,7 +566,6 @@ class SumCountActionCodeGen : public ActionCodeGen {
                         std::string prepare_codes_str,
                         std::shared_ptr<gandiva::Expression> projector) {
     is_key_ = false;
-    std::string sig_name;
     std::shared_ptr<arrow::DataType> in_data_type;
     if (projector) {
       // if projection pre-defined, use projection input

@@ -145,17 +145,11 @@ std::string GetTypeString(std::shared_ptr<arrow::DataType> type, std::string tai
   }
 }
 
-gandiva::ExpressionPtr GetConcatedKernel(
-    std::vector<std::shared_ptr<arrow::Field>> key_list) {
+gandiva::ExpressionPtr GetConcatedKernel(std::vector<gandiva::NodePtr> key_list) {
   int index = 0;
   std::vector<std::shared_ptr<gandiva::Node>> func_node_list = {};
-  std::vector<std::shared_ptr<arrow::Field>> field_list = {};
   for (auto key : key_list) {
-    auto type = key->type();
-    auto name = key->name();
-    auto field = arrow::field(name, type);
-    field_list.push_back(field);
-    auto field_node = gandiva::TreeExprBuilder::MakeField(field);
+    auto field_node = key;
     auto func_node =
         gandiva::TreeExprBuilder::MakeFunction("hash32", {field_node}, arrow::int32());
     func_node_list.push_back(func_node);

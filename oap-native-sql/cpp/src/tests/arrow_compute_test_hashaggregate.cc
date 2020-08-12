@@ -498,5 +498,85 @@ TEST(TestArrowCompute, GroupByHashAggregateWithTwoStringTest) {
   }
 }
 
+TEST(TestArrowCompute, GroupByHashAggregateWithProjectedKeyTest) {
+  ////////////////////// prepare expr_vector ///////////////////////
+  auto f_unique_0 = field("unique_0", utf8());
+  auto f_unique_1 = field("unique_1", utf8());
+  auto f_sum = field("sum", float64());
+  auto f_count_all = field("count_all", int64());
+  auto f_res = field("dummy_res", uint32());
+
+  auto arg_unique_0 = TreeExprBuilder::MakeField(f_unique_0);
+  auto arg_unique_1 = TreeExprBuilder::MakeField(f_unique_1);
+  auto arg_sum = TreeExprBuilder::MakeField(f_sum);
+  auto n_projection = TreeExprBuilder::MakeFunction(
+      "substr",
+      {arg_unique_1, TreeExprBuilder::MakeLiteral((int64_t)0),
+       TreeExprBuilder::MakeLiteral((int64_t)2)},
+      utf8());
+  auto n_groupby_0 =
+      TreeExprBuilder::MakeFunction("action_groupby", {arg_unique_0}, uint32());
+  auto n_groupby_1 =
+      TreeExprBuilder::MakeFunction("action_groupby", {n_projection}, uint32());
+  auto n_sum = TreeExprBuilder::MakeFunction("action_sum", {arg_sum}, uint32());
+  auto n_count_all = TreeExprBuilder::MakeFunction("action_countLiteral_1", {}, uint32());
+  auto n_schema = TreeExprBuilder::MakeFunction(
+      "codegen_schema", {arg_unique_0, arg_unique_1, arg_sum}, uint32());
+  auto n_aggr = TreeExprBuilder::MakeFunction(
+      "hashAggregateArrays", {n_groupby_0, n_groupby_1, n_sum, n_count_all}, uint32());
+  auto n_codegen_aggr =
+      TreeExprBuilder::MakeFunction("codegen_withOneInput", {n_aggr, n_schema}, uint32());
+
+  auto aggr_expr = TreeExprBuilder::MakeExpression(n_codegen_aggr, f_res);
+
+  std::vector<std::shared_ptr<::gandiva::Expression>> expr_vector = {aggr_expr};
+
+  auto sch = arrow::schema({f_unique_0, f_unique_1, f_sum});
+  std::vector<std::shared_ptr<Field>> ret_types = {f_unique_0, f_unique_1, f_sum,
+                                                   f_count_all};
+
+  /////////////////////// Create Expression Evaluator ////////////////////
+  std::shared_ptr<CodeGenerator> expr;
+  ASSERT_NOT_OK(CreateCodeGenerator(sch, expr_vector, ret_types, &expr, true));
+  std::shared_ptr<arrow::RecordBatch> input_batch;
+  std::vector<std::shared_ptr<arrow::RecordBatch>> output_batch_list;
+
+  ////////////////////// calculation /////////////////////
+  std::vector<std::string> input_data = {
+      R"(["a", "b", "c", "d", "e", "e", "d", "a", "b", "b", "a", "a", "a", "d", "d", "c",
+"e", "e", "e", "e"])",
+      R"(["BJH", "SHH", "SZN", "HZK", "WHK", "WHZ", "HZJ", "BJJ", "SHZ", "SHJ",
+"BJJ", "BJH", "BJH", "HZJ", "HZJ", "SZZ", "WHH", "WHJ", "WHK", "WHK"])",
+      R"([1, 2, 3, 4, 5, 5, 4, 1, 2, 2, 1, 1, 1, 4, 4, 3, 5, 5, 5, 5])"};
+  MakeInputBatch(input_data, sch, &input_batch);
+  ASSERT_NOT_OK(expr->evaluate(input_batch, &output_batch_list));
+
+  std::vector<std::string> input_data_2 = {
+      R"(["f", "g", "h", "i", "j", "j", "i", "g", "h", "i", "g", "g", "g", "j", "i", "f",
+"f", "i", "j", "j"])",
+      R"(["CD", "DL", "NY", "LA", "AU", "AU", "LA", "DL", "NY", "LA",
+"DL", "DL", "DL", "AU", "LA", "CD", "CD", "LA", "AU", "AU"])",
+      "[6, 7, 8, 9, 10, 10, 9, 6, 7, 7, 6, 6, 6, 9, 9, 8, 10, 10, 10, 10]"};
+  MakeInputBatch(input_data_2, sch, &input_batch);
+  ASSERT_NOT_OK(expr->evaluate(input_batch, &output_batch_list));
+
+  ////////////////////// Finish //////////////////////////
+  std::shared_ptr<arrow::RecordBatch> result_batch;
+  std::shared_ptr<ResultIterator<arrow::RecordBatch>> aggr_result_iterator;
+  ASSERT_NOT_OK(expr->finish(&aggr_result_iterator));
+
+  std::shared_ptr<arrow::RecordBatch> expected_result;
+  std::vector<std::string> expected_result_string = {
+      R"(["a", "b", "c", "d", "e", "f", "g", "h", "i", "j"])",
+      R"(["BJ", "SH", "SZ", "HZ", "WH", "CD", "DL", "NY", "LA", "AU"])",
+      "[5, 6, 6, 16, 30, 24, 31, 15, 44, 49]", "[5, 3, 2, 4, 6, 3, 5, 2, 5, 5]"};
+  auto res_sch = arrow::schema(ret_types);
+  MakeInputBatch(expected_result_string, res_sch, &expected_result);
+  if (aggr_result_iterator->HasNext()) {
+    ASSERT_NOT_OK(aggr_result_iterator->Next(&result_batch));
+    ASSERT_NOT_OK(Equals(*expected_result.get(), *result_batch.get()));
+  }
+}
+
 }  // namespace codegen
 }  // namespace sparkcolumnarplugin

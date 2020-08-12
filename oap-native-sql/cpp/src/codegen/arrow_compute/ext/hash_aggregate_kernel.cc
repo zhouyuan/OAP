@@ -143,12 +143,12 @@ class HashAggregateKernel::Impl {
   std::vector<std::shared_ptr<arrow::Field>> field_list_;
   std::shared_ptr<gandiva::Projector> projector_;
   std::vector<std::shared_ptr<ActionCodeGen>> action_impl_list_;
-  std::vector<std::pair<std::shared_ptr<arrow::Field>, std::string>> key_list_;
+  std::vector<std::pair<gandiva::NodePtr, std::string>> key_list_;
 
   arrow::Status PrepareActionCodegen() {
-    std::vector<std::pair<gandiva::ExpressionPtr, std::shared_ptr<ActionCodeGen>>>
-        expr_list;
+    std::vector<gandiva::ExpressionPtr> expr_list;
     std::vector<gandiva::FieldPtr> output_field_list;
+    int index = 0;
     for (auto func_node : action_list_) {
       std::shared_ptr<CodeGenNodeVisitor> codegen_visitor;
       std::shared_ptr<ActionCodeGen> action_codegen;
@@ -163,34 +163,27 @@ class HashAggregateKernel::Impl {
       if (action_codegen->IsPreProjected()) {
         auto expr = action_codegen->GetProjectorExpr();
         output_field_list.push_back(expr->result());
-        expr_list.push_back(std::make_pair(expr, action_codegen));
+        // chendi: We need to use index in project output to replace project name
+        action_codegen->WithProjectIndex(index++);
+        expr_list.push_back(expr);
       }
     }
     RETURN_NOT_OK(GetGroupKey(action_impl_list_, &key_list_));
     if (key_list_.size() > 1) {
-      std::vector<std::shared_ptr<arrow::Field>> field_list;
+      std::vector<gandiva::NodePtr> key_expr_list;
       for (auto key : key_list_) {
-        field_list.push_back(key.first);
+        key_expr_list.push_back(key.first);
       }
-      auto expr = GetConcatedKernel(field_list);
+      auto expr = GetConcatedKernel(key_expr_list);
       output_field_list.push_back(expr->result());
-      expr_list.push_back(std::make_pair(expr, nullptr));
+      expr_list.push_back(expr);
     }
     if (!expr_list.empty()) {
       original_input_schema_ = arrow::schema(input_field_list_);
       projected_input_schema_ = arrow::schema(output_field_list);
-      // chendi: We need to use index in project output to replace project name
-      std::vector<gandiva::ExpressionPtr> _expr_list;
-      int index = 0;
-      for (auto pair : expr_list) {
-        _expr_list.push_back(pair.first);
-        if (pair.second != nullptr) {
-          pair.second->WithProjectIndex(index++);
-        }
-      }
       auto configuration = gandiva::ConfigurationBuilder().DefaultConfiguration();
-      RETURN_NOT_OK(gandiva::Projector::Make(original_input_schema_, _expr_list,
-                                             configuration, &projector_));
+      THROW_NOT_OK(gandiva::Projector::Make(original_input_schema_, expr_list,
+                                            configuration, &projector_));
     }
     return arrow::Status::OK();
   }
@@ -291,20 +284,19 @@ class HashAggregateKernel::Impl {
     std::string evaluate_get_typed_key_array_str;
     std::string evaluate_get_typed_key_method_str;
     if (!multiple_cols) {
-      if (key_list_[0].first->type()->id() == arrow::Type::STRING) {
-        hash_map_type_str = GetTypeString(key_list_[0].first->type(), "") + "HashMap";
+      auto key_type = key_list_[0].first->return_type();
+      if (key_type->id() == arrow::Type::STRING) {
+        hash_map_type_str = GetTypeString(arrow::utf8(), "") + "HashMap";
         hash_map_include_str = R"(#include "precompile/hash_map.h")";
       } else {
-        hash_map_type_str =
-            "SparseHashMap<" + GetCTypeString(key_list_[0].first->type()) + ">";
+        hash_map_type_str = "SparseHashMap<" + GetCTypeString(key_type) + ">";
       }
       hash_map_define_str =
           "std::make_shared<" + hash_map_type_str + ">(ctx_->memory_pool());";
-      evaluate_get_typed_key_array_str =
-          "auto typed_array = std::make_shared<" +
-          GetTypeString(key_list_[0].first->type(), "Array") + ">(" +
-          key_list_[0].second + ");";
-      if (key_list_[0].first->type()->id() != arrow::Type::STRING) {
+      evaluate_get_typed_key_array_str = "auto typed_array = std::make_shared<" +
+                                         GetTypeString(key_type, "Array") + ">(" +
+                                         key_list_[0].second + ");\n";
+      if (key_type->id() != arrow::Type::STRING) {
         evaluate_get_typed_key_method_str = "GetView";
       } else {
         evaluate_get_typed_key_method_str = "GetString";
@@ -313,7 +305,7 @@ class HashAggregateKernel::Impl {
       evaluate_get_typed_key_array_str =
           "auto typed_array = "
           "std::make_shared<Int32Array>(projected_batch->GetColumnByName("
-          "\"projection_key\"));";
+          "\"projection_key\"));\n";
       evaluate_get_typed_key_method_str = "GetView";
     }
 
@@ -331,8 +323,8 @@ class TypedGroupbyHashAggregateImpl : public CodeGenBase {
   }
 
   arrow::Status Evaluate(const ArrayList& in, const std::shared_ptr<arrow::RecordBatch>& projected_batch) override {
-    )" + evaluate_get_typed_key_array_str +
-           evaluate_get_typed_array_str +
+    )" + evaluate_get_typed_array_str +
+           evaluate_get_typed_key_array_str +
            R"(
     auto insert_on_found = [this)" +
            typed_input_parameter_str + R"(](int32_t i) {
@@ -460,8 +452,7 @@ extern "C" void MakeCodeGen(arrow::compute::FunctionContext* ctx,
 
   arrow::Status GetGroupKey(
       std::vector<std::shared_ptr<ActionCodeGen>> action_impl_list,
-      std::vector<std::pair<std::shared_ptr<arrow::Field>, std::string>>*
-          key_index_list) {
+      std::vector<std::pair<gandiva::NodePtr, std::string>>* key_index_list) {
     for (auto action : action_impl_list) {
       if (action->IsGroupBy()) {
         key_index_list->push_back(std::make_pair(action->GetInputFieldList()[0],
