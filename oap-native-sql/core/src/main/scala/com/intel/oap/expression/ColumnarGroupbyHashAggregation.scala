@@ -265,8 +265,20 @@ object ColumnarGroupbyHashAggregation extends Logging {
       })
 
     // 2. create aggregate native Expression
-    val inputAttrs = originalInputAttributes.toList
-      .filter(attr => !groupingAttributes.contains(attr))
+    // we need to remove who is in grouping and from partial mode AggregateExpression
+    val partialProjectOrdinalList = ListBuffer[Int]()
+    aggregateExpressions.zipWithIndex.foreach{case(expr, index) => expr.mode match {
+      case Partial => {
+        val internalExpressionList = expr.aggregateFunction.children
+        val ordinalList = ColumnarProjection.binding(originalInputAttributes, internalExpressionList, index, skipLiteral = false)
+        ordinalList.foreach{i => {
+          partialProjectOrdinalList += i
+        }}
+      }
+      case _ => {}
+    }}
+    val inputAttrs = originalInputAttributes.zipWithIndex
+      .filter{case(attr, i) => !groupingAttributes.contains(attr) && !partialProjectOrdinalList.toList.contains(i)}.map(_._1)
     inputAttrQueue = scala.collection.mutable.Queue(inputAttrs: _*)
     val aggrNativeFuncNodes =
       aggregateExpressions.toList.map(expr => getColumnarFuncNode(expr))

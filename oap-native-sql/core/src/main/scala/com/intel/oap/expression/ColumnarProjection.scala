@@ -137,6 +137,28 @@ class ColumnarProjection (
 }
 
 object ColumnarProjection extends Logging {
+  def binding(originalInputAttributes: Seq[Attribute],
+    exprs: Seq[Expression],
+    expIdx: Int,
+    skipLiteral: Boolean = false): List[Int] = {
+  val expressionList = if (skipLiteral) {
+    exprs.filter(expr => !expr.isInstanceOf[Literal])
+    } else {
+      exprs
+    }
+    var inputList : java.util.List[Field] = Lists.newArrayList()
+    expressionList.map {
+      expr => {
+        ColumnarExpressionConverter.reset()
+        var columnarExpr: Expression =
+          ColumnarExpressionConverter.replaceWithColumnarExpression(expr, originalInputAttributes, expIdx)
+        columnarExpr.asInstanceOf[ColumnarExpression].doColumnarCodeGen(inputList)
+      }
+    }
+    inputList.asScala.toList.distinct.map(field => {
+      field.getName.replace("c_", "").toInt
+    })
+  }
   def create(
     originalInputAttributes: Seq[Attribute],
     exprs: Seq[Expression],
