@@ -347,9 +347,15 @@ object ColumnarGroupbyHashAggregation extends Logging {
     aggregateFunc match {
       case Average(_) =>
         mode match {
-          case Partial | PartialMerge =>
+          case Partial =>
             val childrenColumnarFuncNodeList =
               aggregateFunc.children.toList.map(expr => getColumnarFuncNode(expr))
+            TreeBuilder
+              .makeFunction("action_sum_count", childrenColumnarFuncNodeList.asJava, resultType)
+          case PartialMerge =>
+            val childrenColumnarFuncNodeList =
+              List(inputAttrQueue.dequeue, inputAttrQueue.dequeue).map(attr =>
+                getColumnarFuncNode(attr))
             TreeBuilder
               .makeFunction("action_sum_count", childrenColumnarFuncNodeList.asJava, resultType)
           case Final =>
@@ -364,15 +370,15 @@ object ColumnarGroupbyHashAggregation extends Logging {
       case Sum(_) =>
         val childrenColumnarFuncNodeList =
           mode match {
-            case Partial | PartialMerge =>
+            case Partial =>
               aggregateFunc.children.toList.map(expr => getColumnarFuncNode(expr))
-            case Final =>
+            case Final | PartialMerge =>
               List(inputAttrQueue.dequeue).map(attr => getColumnarFuncNode(attr))
           }
         TreeBuilder.makeFunction("action_sum", childrenColumnarFuncNodeList.asJava, resultType)
       case Count(_) =>
         mode match {
-          case Partial | PartialMerge =>
+          case Partial =>
             val childrenColumnarFuncNodeList =
               aggregateFunc.children.toList.map(expr => getColumnarFuncNode(expr))
             if (aggregateFunc.children(0).isInstanceOf[Literal]) {
@@ -384,7 +390,7 @@ object ColumnarGroupbyHashAggregation extends Logging {
               TreeBuilder
                 .makeFunction("action_count", childrenColumnarFuncNodeList.asJava, resultType)
             }
-          case Final =>
+          case Final | PartialMerge =>
             val childrenColumnarFuncNodeList =
               List(inputAttrQueue.dequeue).map(attr => getColumnarFuncNode(attr))
             TreeBuilder
@@ -393,18 +399,18 @@ object ColumnarGroupbyHashAggregation extends Logging {
       case Max(_) =>
         val childrenColumnarFuncNodeList =
           mode match {
-            case Partial | PartialMerge =>
+            case Partial =>
               aggregateFunc.children.toList.map(expr => getColumnarFuncNode(expr))
-            case Final =>
+            case Final | PartialMerge =>
               List(inputAttrQueue.dequeue).map(attr => getColumnarFuncNode(attr))
           }
         TreeBuilder.makeFunction("action_max", childrenColumnarFuncNodeList.asJava, resultType)
       case Min(_) =>
         val childrenColumnarFuncNodeList =
           mode match {
-            case Partial | PartialMerge =>
+            case Partial =>
               aggregateFunc.children.toList.map(expr => getColumnarFuncNode(expr))
-            case Final =>
+            case Final | PartialMerge =>
               List(inputAttrQueue.dequeue).map(attr => getColumnarFuncNode(attr))
           }
         TreeBuilder.makeFunction("action_min", childrenColumnarFuncNodeList.asJava, resultType)
