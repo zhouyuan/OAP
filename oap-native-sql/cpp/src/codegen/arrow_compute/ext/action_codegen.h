@@ -1420,33 +1420,54 @@ class StddevSampFinalActionCodeGen : public ActionCodeGen {
     on_new_codes_list_.push_back(sig_name + ".push_back(" + tmp_name + ");");    
     ///////////////////////////// Stddev //////////////////////////////////
     sig_name = "action_stddev_" + name + "_";
+    auto validity_name = "action_stddev_" + name + "_validity_";
     data_type = arrow::float64();
     func_sig_list_.push_back(sig_name);
+    func_sig_list_.push_back(validity_name);
+    typed_input_and_prepare_list_.push_back(std::make_pair("", ""));
     typed_input_and_prepare_list_.push_back(std::make_pair("", ""));
     func_sig_define_codes_list_.push_back(
         GetTypedVectorDefineString(data_type, sig_name) + ";\n");
+    func_sig_define_codes_list_.push_back(
+        GetTypedVectorDefineString(arrow::boolean(), validity_name) + ";\n");
+    on_exists_codes_list_.push_back("");
     on_exists_codes_list_.push_back("");
     on_new_codes_list_.push_back("");
+    on_new_codes_list_.push_back("");
     on_finish_codes_list_.push_back("if (" + count_name + "[i] - 1 < 0.00001) {\n"
-      + sig_name + ".push_back(std::numeric_limits<double>::quiet_NaN());}\n" 
+      + validity_name + ".push_back(true);\n"
+      // + sig_name + ".push_back(std::numeric_limits<double>::quiet_NaN());}\n" 
+      + sig_name + ".push_back(std::numeric_limits<double>::infinity());}\n"
       + "else if (" + count_name + "[i] < 0.00001) {\n"
-      + sig_name + ".push_back(std::numeric_limits<double>::quiet_NaN());}\n" 
-      + "else {\n" + sig_name + ".push_back("
+      + validity_name + ".push_back(false);\n"
+      + sig_name + ".push_back(0);}\n" 
+      + "else {\n" 
+      + validity_name + ".push_back(true);\n"
+      + sig_name + ".push_back("
       + "sqrt(" + m2_name + "[i] / (" + count_name + "[i] - 1)));}\n");
+    on_finish_codes_list_.push_back("");
 
     finish_variable_list_.push_back(sig_name);
+    finish_variable_list_.push_back(validity_name);
     finish_var_parameter_codes_list_.push_back(
-        GetTypedVectorDefineString(data_type, sig_name + "_vector_tmp"));
+        GetTypedVectorDefineString(data_type, sig_name + "_vector_tmp", true));
+    finish_var_parameter_codes_list_.push_back(GetTypedVectorDefineString(
+        arrow::boolean(), validity_name + "_vector_tmp", true));
     finish_var_define_codes_list_.push_back(
-        GetTypedVectorAndBuilderDefineString(data_type, sig_name));
+        GetTypedVectorAndBuilderDefineString(data_type, sig_name, true));
     finish_var_prepare_codes_list_.push_back(
-        GetTypedVectorAndBuilderPrepareString(data_type, sig_name));
+        GetTypedVectorAndBuilderPrepareString(data_type, sig_name, true));
     finish_var_to_builder_codes_list_.push_back(
-        GetTypedVectorToBuilderString(data_type, sig_name));
+        GetTypedVectorToBuilderString(data_type, sig_name, true));
     finish_var_to_array_codes_list_.push_back(
         GetTypedResultToArrayString(data_type, sig_name));
     finish_var_array_codes_list_.push_back(
         GetTypedResultArrayString(data_type, sig_name)); 
+    finish_var_define_codes_list_.push_back("");
+    finish_var_prepare_codes_list_.push_back("");
+    finish_var_to_builder_codes_list_.push_back("");
+    finish_var_to_array_codes_list_.push_back("");
+    finish_var_array_codes_list_.push_back("");
   }
 };
 
