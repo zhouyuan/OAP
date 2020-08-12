@@ -193,6 +193,7 @@ class HashAggregateKernel::Impl {
 
     std::vector<std::string> cached_list;
     std::vector<std::string> typed_input_list;
+    std::vector<std::string> typed_group_input_list;
     std::vector<std::string> result_cached_list;
 
     std::stringstream evaluate_get_typed_array_ss;
@@ -219,13 +220,21 @@ class HashAggregateKernel::Impl {
       for (auto sig : func_sig_list) {
         if (std::find(cached_list.begin(), cached_list.end(), sig) == cached_list.end()) {
           cached_list.push_back(sig);
-          if (evaluate_get_typed_array_list[i].first != "" &&
+          auto tmp_typed_name = evaluate_get_typed_array_list[i].first;
+          if (tmp_typed_name != "" &&
               std::find(typed_input_list.begin(), typed_input_list.end(),
-                        evaluate_get_typed_array_list[i].first) ==
-                  typed_input_list.end()) {
-            typed_input_list.push_back(evaluate_get_typed_array_list[i].first);
-            evaluate_get_typed_array_ss << evaluate_get_typed_array_list[i].second
-                                        << std::endl;
+                        tmp_typed_name) == typed_input_list.end()) {
+            if (std::find(typed_group_input_list.begin(), typed_group_input_list.end(),
+                          tmp_typed_name) == typed_group_input_list.end()) {
+              evaluate_get_typed_array_ss << evaluate_get_typed_array_list[i].second
+                                          << std::endl;
+            }
+
+            if (!action->IsGroupBy()) {
+              typed_input_list.push_back(tmp_typed_name);
+            } else {
+              typed_group_input_list.push_back(tmp_typed_name);
+            }
             compute_on_exists_ss << compute_on_exists_prepare_list[i] << std::endl;
             compute_on_new_ss << compute_on_new_prepare_list[i] << std::endl;
           }
@@ -260,6 +269,11 @@ class HashAggregateKernel::Impl {
       }
     }
     auto evaluate_get_typed_array_str = evaluate_get_typed_array_ss.str();
+    for (auto input : typed_group_input_list) {
+      if (std::find(typed_input_list.begin(), typed_input_list.end(), input) ==
+          typed_input_list.end())
+        typed_input_list.push_back(input);
+    }
     auto typed_input_parameter_str = GetParameterList(typed_input_list);
     auto compute_on_exists_str = compute_on_exists_ss.str();
     auto compute_on_new_str = compute_on_new_ss.str();
@@ -490,7 +504,7 @@ extern "C" void MakeCodeGen(arrow::compute::FunctionContext* ctx,
       return ", " + ret;
     }
   }
-};
+};  // namespace extra
 
 arrow::Status HashAggregateKernel::Make(
     arrow::compute::FunctionContext* ctx,
