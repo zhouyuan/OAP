@@ -292,7 +292,7 @@ class HashAggregateKernel::Impl {
     std::string concat_kernel;
     std::string hash_map_include_str = R"(#include "precompile/sparse_hash_map.h")";
     std::string hash_map_type_str =
-        "SparseHashMap<" + GetCTypeString(arrow::int32()) + ">";
+        "SparseHashMap<" + GetCTypeString(arrow::int64()) + ">";
     std::string hash_map_define_str =
         "std::make_shared<" + hash_map_type_str + ">(ctx_->memory_pool());";
     std::string evaluate_get_typed_key_array_str;
@@ -318,7 +318,7 @@ class HashAggregateKernel::Impl {
     } else {
       evaluate_get_typed_key_array_str =
           "auto typed_array = "
-          "std::make_shared<Int32Array>(projected_batch->GetColumnByName("
+          "std::make_shared<Int64Array>(projected_batch->GetColumnByName("
           "\"projection_key\"));\n";
       evaluate_get_typed_key_method_str = "GetView";
     }

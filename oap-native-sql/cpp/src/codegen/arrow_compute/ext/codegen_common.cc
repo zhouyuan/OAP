@@ -151,22 +151,22 @@ gandiva::ExpressionPtr GetConcatedKernel(std::vector<gandiva::NodePtr> key_list)
   for (auto key : key_list) {
     auto field_node = key;
     auto func_node =
-        gandiva::TreeExprBuilder::MakeFunction("hash32", {field_node}, arrow::int32());
+        gandiva::TreeExprBuilder::MakeFunction("hash64", {field_node}, arrow::int64());
     func_node_list.push_back(func_node);
     if (func_node_list.size() == 2) {
       auto shift_func_node = gandiva::TreeExprBuilder::MakeFunction(
           "multiply",
-          {func_node_list[0], gandiva::TreeExprBuilder::MakeLiteral((int32_t)10)},
-          arrow::int32());
+          {func_node_list[0], gandiva::TreeExprBuilder::MakeLiteral((int64_t)10)},
+          arrow::int64());
       auto tmp_func_node = gandiva::TreeExprBuilder::MakeFunction(
-          "add", {shift_func_node, func_node_list[1]}, arrow::int32());
+          "add", {shift_func_node, func_node_list[1]}, arrow::int64());
       func_node_list.clear();
       func_node_list.push_back(tmp_func_node);
     }
     index++;
   }
   return gandiva::TreeExprBuilder::MakeExpression(
-      func_node_list[0], arrow::field("projection_key", arrow::int32()));
+      func_node_list[0], arrow::field("projection_key", arrow::int64()));
 }
 
 arrow::Status GetIndexList(const std::vector<std::shared_ptr<arrow::Field>>& target_list,
