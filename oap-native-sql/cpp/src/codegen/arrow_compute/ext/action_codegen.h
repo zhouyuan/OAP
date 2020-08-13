@@ -480,44 +480,89 @@ class CountActionCodeGen : public ActionCodeGen {
                      std::string prepare_codes_str,
                      std::shared_ptr<gandiva::Expression> projector) {
     is_key_ = false;
-    auto sig_name = "action_count_" + name + "_";
-    auto data_type = arrow::int64();
-    func_sig_list_.push_back(sig_name);
-    GetTypedArrayCastString(data_type, input_list[0]);
-    auto tmp_name = typed_input_and_prepare_list_[0].first + "_tmp";
-    std::stringstream prepare_codes_ss;
-    auto count_name_tmp = tmp_name + "_count";
-    prepare_codes_ss << GetCTypeString(data_type) << " " << count_name_tmp << " = 0;"
-                     << std::endl;
-    prepare_codes_ss << "if (!" << typed_input_and_prepare_list_[0].first
-                     << "->IsNull(cur_id_)) {" << std::endl;
-    prepare_codes_ss << count_name_tmp << " = 1;" << std::endl;
-    prepare_codes_ss << "}" << std::endl;
+    std::shared_ptr<arrow::DataType> data_type;
+    if (projector) {
+      // if projection pre-defined, use projection input
+      auto _type = projector->result()->type();
+      data_type = _type;
+      projector_expr_ = projector;
+    } else {
+      data_type = input_fields_list[0]->type();
+    }
 
-    func_sig_define_codes_list_.push_back(
-        GetTypedVectorDefineString(data_type, sig_name) + ";\n");
-    on_exists_prepare_codes_list_.push_back("");
-    on_new_prepare_codes_list_.push_back("");
-    on_exists_codes_list_.push_back(prepare_codes_ss.str() + "\n" + sig_name +
-                                    "[i] += " + count_name_tmp + ";");
-    on_new_codes_list_.push_back(prepare_codes_ss.str() + "\n" + sig_name +
-                                 ".push_back(" + count_name_tmp + ");");
-    on_finish_codes_list_.push_back("");
+    // Calculate accumulateType here
+    std::shared_ptr<arrow::DataType> res_data_type;
+    switch (data_type->id()) {
+#define PROCESS(InType)                                            \
+  case InType::type_id: {                                          \
+    using AggrType = typename FindAccumulatorType<InType>::Type;   \
+    res_data_type = arrow::TypeTraits<AggrType>::type_singleton(); \
+  } break;
+      PROCESS_SUPPORTED_TYPES(PROCESS)
+#undef PROCESS
+      default: {
+        std::cout << "Not Found " << data_type->ToString() << ", type id is "
+                  << data_type->id() << std::endl;
+      } break;
+    }
 
-    finish_variable_list_.push_back(sig_name);
-    finish_var_parameter_codes_list_.push_back(
-        GetTypedVectorDefineString(data_type, sig_name + "_vector_tmp", true));
-    finish_var_define_codes_list_.push_back(
-        GetTypedVectorAndBuilderDefineString(data_type, sig_name));
-    finish_var_prepare_codes_list_.push_back(
-        GetTypedVectorAndBuilderPrepareString(data_type, sig_name));
-    finish_var_to_builder_codes_list_.push_back(
-        GetTypedVectorToBuilderString(data_type, sig_name));
-    finish_var_to_array_codes_list_.push_back(
-        GetTypedResultToArrayString(data_type, sig_name));
-    finish_var_array_codes_list_.push_back(
-        GetTypedResultArrayString(data_type, sig_name));
+    produce_ = [this, data_type, res_data_type, input_list](std::string name) {
+      std::string sig_name;
+      if (projector_expr_) {
+        sig_name = "action_count_projected_" + name + "_";
+        GetTypedArrayCastFromProjectedString(data_type, name);
+
+      } else {
+        sig_name = "action_count_" + name + "_";
+        GetTypedArrayCastString(data_type, input_list[0]);
+      }
+      func_sig_list_.push_back(sig_name);
+      auto tmp_name = typed_input_and_prepare_list_[0].first + "_tmp";
+      std::stringstream prepare_codes_ss;
+      auto count_name_tmp = tmp_name + "_count";    
+      prepare_codes_ss << GetCTypeString(data_type) << " " << count_name_tmp << " = 0;"
+                      << std::endl;
+      prepare_codes_ss << "if (!" << typed_input_and_prepare_list_[0].first
+                      << "->IsNull(cur_id_)) {" << std::endl;
+      prepare_codes_ss << count_name_tmp << " = 1;" << std::endl;
+      prepare_codes_ss << "}" << std::endl;
+      
+      func_sig_define_codes_list_.push_back(
+        GetTypedVectorDefineString(res_data_type, sig_name) + ";\n");
+      on_exists_prepare_codes_list_.push_back("");
+      on_new_prepare_codes_list_.push_back("");
+      on_exists_codes_list_.push_back(prepare_codes_ss.str() + "\n" + sig_name +
+                                      "[i] += " + count_name_tmp + ";");
+      on_new_codes_list_.push_back(prepare_codes_ss.str() + "\n" + sig_name +
+                                  ".push_back(" + count_name_tmp + ");");
+      on_finish_codes_list_.push_back("");
+
+      finish_variable_list_.push_back(sig_name);
+      finish_var_parameter_codes_list_.push_back(
+          GetTypedVectorDefineString(res_data_type, sig_name + "_vector_tmp", true));
+      finish_var_define_codes_list_.push_back(
+          GetTypedVectorAndBuilderDefineString(res_data_type, sig_name));
+      finish_var_prepare_codes_list_.push_back(
+          GetTypedVectorAndBuilderPrepareString(res_data_type, sig_name));
+      finish_var_to_builder_codes_list_.push_back(
+          GetTypedVectorToBuilderString(res_data_type, sig_name));
+      finish_var_to_array_codes_list_.push_back(
+          GetTypedResultToArrayString(res_data_type, sig_name));
+      finish_var_array_codes_list_.push_back(
+          GetTypedResultArrayString(res_data_type, sig_name));
+    };
+    if (!projector) {
+      produce_(name);
+    }
   }
+
+  arrow::Status WithProjectIndex(int index) override {
+    produce_(std::to_string(index));
+    return arrow::Status::OK();
+  }
+
+  private:
+  std::function<void(std::string)> produce_;
 };
 
 class CountLiteralActionCodeGen : public ActionCodeGen {
