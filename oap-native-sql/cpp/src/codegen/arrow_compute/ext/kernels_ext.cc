@@ -497,7 +497,7 @@ class SumCountArrayKernel::Impl {
     using CType = typename arrow::TypeTraits<DataType>::CType;
     using ScalarType = typename arrow::TypeTraits<DataType>::ScalarType;
     using CntScalarType = typename arrow::TypeTraits<arrow::Int64Type>::ScalarType;
-    CType sum_res = 0;
+    double sum_res = 0;
     int64_t cnt_res = 0;
     for (size_t i = 0; i < sum_scalar_list_.size(); i++) {
       auto sum_typed_scalar = std::dynamic_pointer_cast<ScalarType>(sum_scalar_list_[i]);

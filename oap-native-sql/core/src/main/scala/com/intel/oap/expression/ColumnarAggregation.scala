@@ -109,6 +109,7 @@ class ColumnarAggregation(
   val beforeAggregateExprListBuffer = ListBuffer[Expression]()
   val projectOrdinalListBuffer = ListBuffer[Int]()
   val aggregateFieldListBuffer = ListBuffer[Field]()
+  var aggregateResultAttributesBuffer = ListBuffer[Attribute]()
   // we need to remove ordinal used in partial mode expression
   val nonPartialProjectOrdinalList = (0 until originalInputAttributes.size).toList.filter(i => !groupingOrdinalList.contains(i)).to[ListBuffer]
   aggregateExpressions.zipWithIndex.foreach{case(expr, index) => expr.mode match {
@@ -122,6 +123,7 @@ class ColumnarAggregation(
     case _ => {}
   }}
   var non_partial_field_id = 0
+  var res_field_id = 0
   val (aggregateNativeExpressions, beforeAggregateProjector) = if (mode == null) {
     (List[ColumnarAggregateExpressionBase](), null)
   } else {
@@ -138,7 +140,7 @@ class ColumnarAggregation(
         val internalExpressionList = expr.aggregateFunction.children
         val ordinalList = ColumnarProjection.binding(originalInputAttributes, internalExpressionList, index, skipLiteral = true)
         val fieldList = if (arg_size > 0) {
-            internalExpressionList.map(projectExpr => {
+          internalExpressionList.map(projectExpr => {
             val attr = ConverterUtils.getResultAttrFromExpr(projectExpr, s"res_$index")
             Field.nullable(s"${attr.name}#${attr.exprId.id}", CodeGeneration.getResultType(attr.dataType))
           })
@@ -152,7 +154,9 @@ class ColumnarAggregation(
         fieldList.foreach{field => {
           aggregateFieldListBuffer += field
         }}
+        getAttrForAggregateExpr(expr).foreach(e => aggregateResultAttributesBuffer += e)
         expr.aggregateFunction.children.foreach(e => beforeAggregateExprListBuffer += e)
+        res_field_id += res_size
         res.setInputFields(fieldList.toList)
         res
       }
@@ -177,6 +181,8 @@ class ColumnarAggregation(
         fieldList.foreach{field => {
           aggregateFieldListBuffer += field
         }}
+        (res_field_id until (res_field_id + res_size)).foreach(i => aggregateResultAttributesBuffer += aggregateAttributes(i))
+        res_field_id += res_size
         res.setInputFields(fieldList.toList)
         res
       }
@@ -194,14 +200,7 @@ class ColumnarAggregation(
   // 5. create nativeAggregate evaluator
   val allNativeExpressions = groupingNativeExpression ::: aggregateNativeExpressions
   val allAggregateInputFieldList = groupingFieldList ::: aggregateFieldList
-  var allAggregateResultAttributes : List[Attribute] = _
-  mode match {
-    case Partial | PartialMerge =>
-      val aggregateResultAttributes = getAttrForAggregateExpr(aggregateExpressions)
-      allAggregateResultAttributes = groupingAttributes ::: aggregateResultAttributes
-    case _ =>
-      allAggregateResultAttributes = groupingAttributes ::: aggregateAttributes.toList
-  }
+  val allAggregateResultAttributes = groupingAttributes ::: aggregateResultAttributesBuffer.toList
   val aggregateResultFieldList = allAggregateResultAttributes.map(attr => {
     Field.nullable(s"${attr.name}#${attr.exprId.id}", CodeGeneration.getResultType(attr.dataType))
   })
@@ -249,11 +248,8 @@ class ColumnarAggregation(
     elapseTime.merge(aggrTime)
   }
 
-  def getAttrForAggregateExpr(aggregateExpressions: Seq[AggregateExpression]): List[Attribute] = {
+  def getAttrForAggregateExpr(exp: AggregateExpression): List[Attribute] = {
     var aggregateAttr = new ListBuffer[Attribute]()
-    val size = aggregateExpressions.size
-    for (expIdx <- 0 until size) {
-      val exp: AggregateExpression = aggregateExpressions(expIdx)
       val aggregateFunc = exp.aggregateFunction
       aggregateFunc match {
         case Average(_) =>
@@ -293,7 +289,6 @@ class ColumnarAggregation(
         case other =>
           throw new UnsupportedOperationException(s"not currently supported: $other.")
       }
-    }
     aggregateAttr.toList
   }
 

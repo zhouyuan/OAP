@@ -85,7 +85,7 @@ class ColumnarProjection (
   }
 
   val (ordinalList, arrowSchema) = if (projPrepareList.size > 0 &&
-    (!check_if_no_calculation || projPrepareList.size != inputList.size)) {
+    (s"${projPrepareList.map(_.toProtobuf)}".contains("fnNode") || projPrepareList.size != inputList.size)) {
     val inputFieldList = inputList.asScala.toList.distinct
     val schema = new Schema(inputFieldList.asJava)
     projector = Projector.make(schema, projPrepareList.toList.asJava)
