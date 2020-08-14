@@ -222,12 +222,22 @@ object ColumnarShuffledHashJoin extends Logging {
 
     logInfo(s"leftKeyExpression is ${leftKeys}, rightKeyExpression is ${rightKeys}")
     val lkeyFieldList: List[Field] = leftKeys.toList.map(expr => {
+      val nativeNode = ConverterUtils.getColumnarFuncNode(expr)
+      if (s"${nativeNode.toProtobuf}".contains("fnNode")) {
+        throw new UnsupportedOperationException(
+          s"expression inside key is not currently supported.")
+      }
       val attr = ConverterUtils.getAttrFromExpr(expr)
       Field
         .nullable(s"${attr.name}#${attr.exprId.id}", CodeGeneration.getResultType(attr.dataType))
     })
 
     val rkeyFieldList: List[Field] = rightKeys.toList.map(expr => {
+      val nativeNode = ConverterUtils.getColumnarFuncNode(expr)
+      if (s"${nativeNode.toProtobuf}".contains("fnNode")) {
+        throw new UnsupportedOperationException(
+          s"expression inside key is not currently supported.")
+      }
       val attr = ConverterUtils.getAttrFromExpr(expr)
       Field
         .nullable(s"${attr.name}#${attr.exprId.id}", CodeGeneration.getResultType(attr.dataType))
