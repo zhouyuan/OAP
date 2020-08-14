@@ -748,7 +748,7 @@ class ConditionedProbeArraysKernel::Impl {
       ss << "std::shared_ptr<arrow::Array> hash_in;" << std::endl;
       ss << "RETURN_NOT_OK(hash_kernel_->Evaluate(concat_kernel_arr_list, &hash_in));"
          << std::endl;
-      ss << "auto typed_array = std::make_shared<Int32Array>(hash_in);" << std::endl;
+      ss << "auto typed_array = std::make_shared<Int64Array>(hash_in);" << std::endl;
     } else {
       ss << "auto typed_array = std::make_shared<" << data_type << ">(in[" << i << "]);"
          << std::endl;
