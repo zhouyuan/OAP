@@ -238,8 +238,9 @@ object ColumnarGroupbyHashAggregation extends Logging {
     val mode = if (aggregateExpressions.size > 0) {
       aggregateExpressions(0).mode
     } else {
-      throw new UnsupportedOperationException(
-        s"Unable to handle Aggregation with no aggregate expressions.")
+      null
+      //throw new UnsupportedOperationException(
+      //  s"Unable to handle Aggregation with no aggregate expressions.")
     }
 
     val originalInputFieldList = originalInputAttributes.toList.map(attr => {
