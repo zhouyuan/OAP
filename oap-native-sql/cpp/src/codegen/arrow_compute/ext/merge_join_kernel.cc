@@ -471,9 +471,9 @@ class ConditionedJoinArraysKernel::Impl {
             while(*left_it == right_content && left_it != left_list_->end()) {
               auto tmp = (*idx_to_arrarid_)[std::distance(left_list_->begin(), left_it)];)" +
            shuffle_str + R"(
-              if (*left_it > right_content && left_it != left_list_->end()){
-              continue;
-              }
+              //if (*left_it > right_content && left_it != left_list_->end()){
+              //continue;
+              //}
           }
   )";
   }
@@ -661,10 +661,10 @@ class ConditionedJoinArraysKernel::Impl {
       left_it++;
   }
   left_it = old_it;
-  if (*left_it > typed_array_0->GetView(i) && left_it != left_list_->end() ) {
-    continue;
-    
-        }
+  //if (*left_it > typed_array_0->GetView(i) && left_it != left_list_->end() ) {
+  //  continue;
+  //
+  //      }
       }
   )";
   }
@@ -881,7 +881,7 @@ class ConditionedJoinArraysKernel::Impl {
     bool multiple_cols = (left_key_index_list.size() > 1);
     std::string list_tiem_str;
 
-    std::string hash_map_include_str = R"(#include "precompile/sparse_hash_map.h")";
+    std::string hash_map_include_str = "";
     
     std::string hash_map_type_str =
         GetCTypeString(left_field_list[left_key_index_list[0]]->type());
@@ -974,7 +974,6 @@ class ConditionedJoinArraysKernel::Impl {
     return BaseCodes() + R"(
 #include "codegen/arrow_compute/ext/array_item_index.h"
 #include "precompile/builder.h"
-#include "precompile/hash_arrays_kernel.h"
 )" + hash_map_include_str +
            R"(
 using namespace sparkcolumnarplugin::precompile;
