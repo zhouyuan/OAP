@@ -105,6 +105,7 @@ class ColumnarShuffledHashJoinExec(
         case e: UnsupportedOperationException
             if e.getMessage == "Unsupport to generate native expression from replaceable expression." =>
           logWarning(e.getMessage())
+          ""
         case e =>
           throw e
       }
