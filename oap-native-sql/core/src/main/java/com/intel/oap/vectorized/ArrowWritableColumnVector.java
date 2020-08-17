@@ -168,6 +168,11 @@ public final class ArrowWritableColumnVector extends WritableColumnVector {
     return vector;
   }
 
+  public void setValueCount(int numRows) {
+    vector.setValueCount(numRows);
+  }
+
+
   private void createVectorAccessor(ValueVector vector, ValueVector dictionary) {
     if (dictionary != null) {
       if (!(vector instanceof IntVector)) {
@@ -422,11 +427,13 @@ public final class ArrowWritableColumnVector extends WritableColumnVector {
 
   @Override
   public void putNull(int rowId) {
+    numNulls += 1;
     writer.setNull(rowId);
   }
 
   @Override
   public void putNulls(int rowId, int count) {
+    numNulls += count;
     writer.setNulls(rowId, count);
   }
 
