@@ -245,8 +245,10 @@ case class ColumnarPreOverrides(conf: SparkConf) extends Rule[SparkPlan] {
   }
 
   def applyChildrenWithStrategy(p: SparkPlan): Seq[SparkPlan] = {
-    p.children.map(child =>
-      child match {
+    if (columnarConf.enablePreferColumnar) {
+      p.children.map(replaceWithColumnarPlan)
+    } else {
+      p.children.map(child => child match {
         case project: ProjectExec =>
           val newChild = replaceWithColumnarPlan(project.child)
           if (newChild.supportsColumnar) {
@@ -274,6 +276,7 @@ case class ColumnarPreOverrides(conf: SparkConf) extends Rule[SparkPlan] {
         case _ =>
           replaceWithColumnarPlan(child)
       })
+    }
   }
 }
 
