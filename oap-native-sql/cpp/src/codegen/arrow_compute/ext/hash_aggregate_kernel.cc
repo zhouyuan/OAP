@@ -68,6 +68,10 @@ class HashAggregateKernel::Impl {
     for (auto field : input_field_list_) {
       func_args_ss << field->type()->ToString() << "|";
     }
+    func_args_ss << "[ordinal]";
+    for (auto ordinal : input_ordinal_list_) {
+      func_args_ss << ordinal << "|";
+    }
     func_args_ss << "[actions]";
     for (auto action : action_list_) {
       std::shared_ptr<CodeGenRegister> node_tmp;
@@ -144,6 +148,7 @@ class HashAggregateKernel::Impl {
   std::shared_ptr<gandiva::Projector> projector_;
   std::vector<std::shared_ptr<ActionCodeGen>> action_impl_list_;
   std::vector<std::pair<gandiva::NodePtr, std::string>> key_list_;
+  std::vector<std::string> input_ordinal_list_;
 
   arrow::Status PrepareActionCodegen() {
     std::vector<gandiva::ExpressionPtr> expr_list;
@@ -168,6 +173,7 @@ class HashAggregateKernel::Impl {
         expr_list.push_back(expr);
       }
     }
+    RETURN_NOT_OK(GetInputOrdinalList(action_impl_list_, &input_ordinal_list_));
     RETURN_NOT_OK(GetGroupKey(action_impl_list_, &key_list_));
     if (key_list_.size() > 1) {
       std::vector<gandiva::NodePtr> key_expr_list;
@@ -464,6 +470,16 @@ extern "C" void MakeCodeGen(arrow::compute::FunctionContext* ctx,
     )";
   }
 
+  arrow::Status GetInputOrdinalList(
+      std::vector<std::shared_ptr<ActionCodeGen>> action_impl_list,
+      std::vector<std::string>* input_ordinal_list) {
+    for (auto action : action_impl_list) {
+      for (auto name : action->GetInputDataNameList()) {
+        input_ordinal_list->push_back(name);
+      }
+    }
+    return arrow::Status::OK();
+  }
   arrow::Status GetGroupKey(
       std::vector<std::shared_ptr<ActionCodeGen>> action_impl_list,
       std::vector<std::pair<gandiva::NodePtr, std::string>>* key_index_list) {
