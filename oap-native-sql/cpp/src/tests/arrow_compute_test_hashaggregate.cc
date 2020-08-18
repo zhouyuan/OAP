@@ -110,6 +110,170 @@ TEST(TestArrowCompute, GroupByHashAggregateTest) {
   }
 }
 
+TEST(TestArrowCompute, GroupByHashAggregateTest2) {
+  ////////////////////// prepare expr_vector ///////////////////////
+  auto f0 = field("f0", uint32());
+  auto f1 = field("f1", uint32());
+  auto f_unique = field("unique", uint32());
+  auto f_sum = field("sum", uint64());
+  auto f_count = field("count", int64());
+  auto f_min = field("min", uint32());
+  auto f_max = field("max", uint32());
+  auto f_res = field("res", uint32());
+
+  auto arg0 = TreeExprBuilder::MakeField(f0);
+  auto arg1 = TreeExprBuilder::MakeField(f1);
+  auto n_groupby = TreeExprBuilder::MakeFunction("action_groupby", {arg0}, uint32());
+  auto n_sum_count = TreeExprBuilder::MakeFunction("action_sum_count", {arg1}, uint32());
+  auto n_min = TreeExprBuilder::MakeFunction("action_min", {arg1}, uint32());
+  auto n_max = TreeExprBuilder::MakeFunction("action_max", {arg1}, uint32());
+  auto n_sum = TreeExprBuilder::MakeFunction("action_sum", {arg1}, uint32());
+  auto n_count = TreeExprBuilder::MakeFunction("action_count", {arg1}, uint32());
+  auto n_schema = TreeExprBuilder::MakeFunction(
+      "codegen_schema", {TreeExprBuilder::MakeField(f0), TreeExprBuilder::MakeField(f1)},
+      uint32());
+  auto n_aggr = TreeExprBuilder::MakeFunction(
+      "hashAggregateArrays", {n_groupby, n_sum_count, n_min, n_max, n_sum, n_count},
+      uint32());
+  auto n_codegen_aggr =
+      TreeExprBuilder::MakeFunction("codegen_withOneInput", {n_aggr, n_schema}, uint32());
+
+  auto aggr_expr = TreeExprBuilder::MakeExpression(n_codegen_aggr, f_res);
+
+  std::vector<std::shared_ptr<::gandiva::Expression>> expr_vector = {aggr_expr};
+
+  auto sch = arrow::schema({f0, f1});
+  std::vector<std::shared_ptr<Field>> ret_types = {f_unique, f_sum, f_count, f_min,
+                                                   f_max,    f_sum, f_count};
+
+  /////////////////////// Create Expression Evaluator ////////////////////
+  std::shared_ptr<CodeGenerator> expr;
+  ASSERT_NOT_OK(CreateCodeGenerator(sch, expr_vector, ret_types, &expr, true));
+  std::shared_ptr<arrow::RecordBatch> input_batch;
+  std::vector<std::shared_ptr<arrow::RecordBatch>> output_batch_list;
+
+  ////////////////////// calculation /////////////////////
+  std::vector<std::string> input_data = {
+      "[1, 2, 3, 4, 5, null, 4, 1, 2, 2, 1, 1, 1, 4, 4, 3, 5, 5, 5, 5]",
+      "[1, 2, 3, 4, 5, 5, 4, 1, 2, 2, 1, 1, 1, 4, 4, 3, 5, 5, 5, 5]"};
+  MakeInputBatch(input_data, sch, &input_batch);
+  ASSERT_NOT_OK(expr->evaluate(input_batch, &output_batch_list));
+
+  std::vector<std::string> input_data_2 = {
+      "[6, 7, 8, 9, 10, 10, 9, 6, 7, 7, 6, 6, 6, 9, 9, 8, 10, 10, 10, 10]",
+      "[6, 7, 8, 9, 10, 10, 9, 6, 7, 7, 6, 6, 6, 9, 9, 8, 10, 10, 10, 10]"};
+  MakeInputBatch(input_data_2, sch, &input_batch);
+  ASSERT_NOT_OK(expr->evaluate(input_batch, &output_batch_list));
+
+  std::vector<std::string> input_data_3 = {
+      "[1, 2, 3, 8, 5, 5, 10, 1, 2, 7, 6, 6, 1, 9, 4, 9, null, 8, 5, 5]",
+      "[1, 2, 3, 8, 5, 5, 10, 1, 2, 7, 6, 6, 1, 9, 4, 9, 5, 8, 5, 5]"};
+  MakeInputBatch(input_data_3, sch, &input_batch);
+  ASSERT_NOT_OK(expr->evaluate(input_batch, &output_batch_list));
+
+  ////////////////////// Finish //////////////////////////
+  std::shared_ptr<arrow::RecordBatch> result_batch;
+  std::shared_ptr<ResultIterator<arrow::RecordBatch>> aggr_result_iterator;
+  ASSERT_NOT_OK(expr->finish(&aggr_result_iterator));
+
+  std::shared_ptr<arrow::RecordBatch> expected_result;
+  std::vector<std::string> expected_result_string = {
+      "[1, 2, 3, 4, 5, 6, 7, 8 ,9, 10]", "[8, 10, 9, 20, 45, 42, 28, 32, 54, 70]",
+      "[8, 5, 3, 5, 9, 7, 4, 4, 6, 7]",  "[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]",
+      "[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]", "[8, 10, 9, 20, 45, 42, 28, 32, 54, 70]",
+      "[8, 5, 3, 5, 9, 7, 4, 4, 6, 7]"};
+  auto res_sch = arrow::schema(ret_types);
+  MakeInputBatch(expected_result_string, res_sch, &expected_result);
+  if (aggr_result_iterator->HasNext()) {
+    ASSERT_NOT_OK(aggr_result_iterator->Next(&result_batch));
+    ASSERT_NOT_OK(Equals(*expected_result.get(), *result_batch.get()));
+  }
+}
+
+TEST(TestArrowCompute, GroupByHashAggregateTest3) {
+  ////////////////////// prepare expr_vector ///////////////////////
+  auto f0 = field("f0", uint32());
+  auto f1 = field("f1", uint32());
+  auto f2 = field("f2", uint32());
+  auto f_unique = field("unique", uint32());
+  auto f_sum = field("sum", uint64());
+  auto f_count = field("count", int64());
+  auto f_min = field("min", uint32());
+  auto f_max = field("max", uint32());
+  auto f_res = field("res", uint32());
+
+  auto arg0 = TreeExprBuilder::MakeField(f0);
+  auto arg1 = TreeExprBuilder::MakeField(f1);
+  auto arg2 = TreeExprBuilder::MakeField(f2);
+  auto n_groupby = TreeExprBuilder::MakeFunction("action_groupby", {arg0}, uint32());
+  auto n_min = TreeExprBuilder::MakeFunction("action_min", {arg1}, uint32());
+  auto n_max = TreeExprBuilder::MakeFunction("action_max", {arg1}, uint32());
+  auto n_sum_count_merge =
+      TreeExprBuilder::MakeFunction("action_sum_count_merge", {arg1, arg2}, uint32());
+  auto n_schema = TreeExprBuilder::MakeFunction(
+      "codegen_schema",
+      {TreeExprBuilder::MakeField(f0), TreeExprBuilder::MakeField(f1),
+       TreeExprBuilder::MakeField(f2)},
+      uint32());
+  auto n_aggr = TreeExprBuilder::MakeFunction(
+      "hashAggregateArrays", {n_groupby, n_min, n_max, n_sum_count_merge}, uint32());
+  auto n_codegen_aggr =
+      TreeExprBuilder::MakeFunction("codegen_withOneInput", {n_aggr, n_schema}, uint32());
+
+  auto aggr_expr = TreeExprBuilder::MakeExpression(n_codegen_aggr, f_res);
+
+  std::vector<std::shared_ptr<::gandiva::Expression>> expr_vector = {aggr_expr};
+
+  auto sch = arrow::schema({f0, f1, f2});
+  std::vector<std::shared_ptr<Field>> ret_types = {f_unique, f_min, f_max, f_sum,
+                                                   f_count};
+
+  /////////////////////// Create Expression Evaluator ////////////////////
+  std::shared_ptr<CodeGenerator> expr;
+  ASSERT_NOT_OK(CreateCodeGenerator(sch, expr_vector, ret_types, &expr, true));
+  std::shared_ptr<arrow::RecordBatch> input_batch;
+  std::vector<std::shared_ptr<arrow::RecordBatch>> output_batch_list;
+
+  ////////////////////// calculation /////////////////////
+  std::vector<std::string> input_data = {
+      "[1, 2, 3, 4, 5, null, 4, 1, 2, 2, 1, 1, 1, 4, 4, 3, 5, 5, 5, 5]",
+      "[1, 2, 3, 4, 5, 5, 4, 1, 2, 2, 1, 1, 1, 4, 4, 3, 5, 5, 5, 5]",
+      "[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]"};
+  MakeInputBatch(input_data, sch, &input_batch);
+  ASSERT_NOT_OK(expr->evaluate(input_batch, &output_batch_list));
+
+  std::vector<std::string> input_data_2 = {
+      "[6, 7, 8, 9, 10, 10, 9, 6, 7, 7, 6, 6, 6, 9, 9, 8, 10, 10, 10, 10]",
+      "[6, 7, 8, 9, 10, 10, 9, 6, 7, 7, 6, 6, 6, 9, 9, 8, 10, 10, 10, 10]",
+      "[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]"};
+  MakeInputBatch(input_data_2, sch, &input_batch);
+  ASSERT_NOT_OK(expr->evaluate(input_batch, &output_batch_list));
+
+  std::vector<std::string> input_data_3 = {
+      "[1, 2, 3, 8, 5, 5, 10, 1, 2, 7, 6, 6, 1, 9, 4, 9, null, 8, 5, 5]",
+      "[1, 2, 3, 8, 5, 5, 10, 1, 2, 7, 6, 6, 1, 9, 4, 9, 5, 8, 5, 5]",
+      "[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]"};
+  MakeInputBatch(input_data_3, sch, &input_batch);
+  ASSERT_NOT_OK(expr->evaluate(input_batch, &output_batch_list));
+
+  ////////////////////// Finish //////////////////////////
+  std::shared_ptr<arrow::RecordBatch> result_batch;
+  std::shared_ptr<ResultIterator<arrow::RecordBatch>> aggr_result_iterator;
+  ASSERT_NOT_OK(expr->finish(&aggr_result_iterator));
+
+  std::shared_ptr<arrow::RecordBatch> expected_result;
+  std::vector<std::string> expected_result_string = {
+      "[1, 2, 3, 4, 5, 6, 7, 8 ,9, 10]", "[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]",
+      "[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]", "[8, 10, 9, 20, 45, 42, 28, 32, 54, 70]",
+      "[8, 5, 3, 5, 9, 7, 4, 4, 6, 7]"};
+  auto res_sch = arrow::schema(ret_types);
+  MakeInputBatch(expected_result_string, res_sch, &expected_result);
+  if (aggr_result_iterator->HasNext()) {
+    ASSERT_NOT_OK(aggr_result_iterator->Next(&result_batch));
+    ASSERT_NOT_OK(Equals(*expected_result.get(), *result_batch.get()));
+  }
+}
+
 TEST(TestArrowCompute, GroupByHashAggregateWithStringTest) {
   ////////////////////// prepare expr_vector ///////////////////////
   auto f_unique = field("unique", utf8());
@@ -593,14 +757,17 @@ TEST(TestArrowCompute, GroupByStddevSampPartialHashAggregateTest) {
   auto arg1 = TreeExprBuilder::MakeField(f1);
   auto arg2 = TreeExprBuilder::MakeField(f2);
   auto n_groupby = TreeExprBuilder::MakeFunction("action_groupby", {arg0}, uint32());
-  auto n_stddev_1 = TreeExprBuilder::MakeFunction("action_stddev_samp_partial", {arg1}, uint32());
-  auto n_stddev_2 = TreeExprBuilder::MakeFunction("action_stddev_samp_partial", {arg2}, uint32());
+  auto n_stddev_1 =
+      TreeExprBuilder::MakeFunction("action_stddev_samp_partial", {arg1}, uint32());
+  auto n_stddev_2 =
+      TreeExprBuilder::MakeFunction("action_stddev_samp_partial", {arg2}, uint32());
   auto n_schema = TreeExprBuilder::MakeFunction(
-      "codegen_schema", {TreeExprBuilder::MakeField(f0), TreeExprBuilder::MakeField(f1), 
-      TreeExprBuilder::MakeField(f2)}, uint32());
+      "codegen_schema",
+      {TreeExprBuilder::MakeField(f0), TreeExprBuilder::MakeField(f1),
+       TreeExprBuilder::MakeField(f2)},
+      uint32());
   auto n_aggr = TreeExprBuilder::MakeFunction(
-      "hashAggregateArrays",
-      {n_groupby, n_stddev_1, n_stddev_2}, uint32());
+      "hashAggregateArrays", {n_groupby, n_stddev_1, n_stddev_2}, uint32());
   auto n_codegen_aggr =
       TreeExprBuilder::MakeFunction("codegen_withOneInput", {n_aggr, n_schema}, uint32());
 
@@ -609,7 +776,8 @@ TEST(TestArrowCompute, GroupByStddevSampPartialHashAggregateTest) {
   std::vector<std::shared_ptr<::gandiva::Expression>> expr_vector = {aggr_expr};
 
   auto sch = arrow::schema({f0, f1, f2});
-  std::vector<std::shared_ptr<Field>> ret_types = {f_unique, f_n, f_avg, f_m2, f_n, f_avg, f_m2};
+  std::vector<std::shared_ptr<Field>> ret_types = {f_unique, f_n,   f_avg, f_m2,
+                                                   f_n,      f_avg, f_m2};
 
   /////////////////////// Create Expression Evaluator ////////////////////
   std::shared_ptr<CodeGenerator> expr;
@@ -646,14 +814,14 @@ TEST(TestArrowCompute, GroupByStddevSampPartialHashAggregateTest) {
 
   std::shared_ptr<arrow::RecordBatch> expected_result;
   std::vector<std::string> expected_result_string = {
-      "[1, 2, 3, 4, 5, 6, 7, 8 ,9, 10]", "[8, 5, 3, 5, 9, 7, 4, 4, 6, 7]",
-      "[17.875, 20.2, 28.6667, 19.8, 33.7778, 33.5714, 42, 48 ,17.5, 21]", 
+      "[1, 2, 3, 4, 5, 6, 7, 8 ,9, 10]",
+      "[8, 5, 3, 5, 9, 7, 4, 4, 6, 7]",
+      "[17.875, 20.2, 28.6667, 19.8, 33.7778, 33.5714, 42, 48 ,17.5, 21]",
       "[596.875, 588.8, 1320.67, 1028.8, 8587.56, 3729.71, 2430, 3134, 995.5, 1540]",
       "[8, 5, 3, 5, 9, 7, 4, 4, 6, 7]",
-      "[17.875, 20.2, 28.6667, 19.8, 33.7778, 33.5714, 42, 48 ,17.5, 21]", 
+      "[17.875, 20.2, 28.6667, 19.8, 33.7778, 33.5714, 42, 48 ,17.5, 21]",
       "[596.875, 588.8, 1320.67, 1028.8, 8587.56, 3729.71, 2430, 3134, 995.5, 1540]"};
-  auto res_sch =
-      arrow::schema({f_unique, f_n, f_avg, f_m2, f_n, f_avg, f_m2});
+  auto res_sch = arrow::schema({f_unique, f_n, f_avg, f_m2, f_n, f_avg, f_m2});
   MakeInputBatch(expected_result_string, res_sch, &expected_result);
   if (aggr_result_iterator->HasNext()) {
     ASSERT_NOT_OK(aggr_result_iterator->Next(&result_batch));
@@ -676,12 +844,15 @@ TEST(TestArrowCompute, GroupByStddevSampFinalHashAggregateTest) {
   auto arg2 = TreeExprBuilder::MakeField(f2);
   auto arg3 = TreeExprBuilder::MakeField(f3);
   auto n_groupby = TreeExprBuilder::MakeFunction("action_groupby", {arg0}, uint32());
-  auto n_stddev = TreeExprBuilder::MakeFunction("action_stddev_samp_final", {arg1, arg2, arg3}, uint32());
+  auto n_stddev = TreeExprBuilder::MakeFunction("action_stddev_samp_final",
+                                                {arg1, arg2, arg3}, uint32());
   auto n_schema = TreeExprBuilder::MakeFunction(
-      "codegen_schema", {TreeExprBuilder::MakeField(f0), TreeExprBuilder::MakeField(f1), 
-      TreeExprBuilder::MakeField(f2), TreeExprBuilder::MakeField(f3)}, uint32());
-  auto n_aggr = TreeExprBuilder::MakeFunction(
-      "hashAggregateArrays", {n_groupby, n_stddev}, uint32());
+      "codegen_schema",
+      {TreeExprBuilder::MakeField(f0), TreeExprBuilder::MakeField(f1),
+       TreeExprBuilder::MakeField(f2), TreeExprBuilder::MakeField(f3)},
+      uint32());
+  auto n_aggr = TreeExprBuilder::MakeFunction("hashAggregateArrays",
+                                              {n_groupby, n_stddev}, uint32());
   auto n_codegen_aggr =
       TreeExprBuilder::MakeFunction("codegen_withOneInput", {n_aggr, n_schema}, uint32());
 
@@ -722,10 +893,10 @@ TEST(TestArrowCompute, GroupByStddevSampFinalHashAggregateTest) {
 
   std::shared_ptr<arrow::RecordBatch> expected_result;
   std::vector<std::string> expected_result_string = {
-      "[1, 2, 3, 4, 5, 6, 7, 8 ,9, 10]", 
-      "[8.49255, 6.93137, 7.6489, 13.5708, 17.4668, 8.52779, 6.23633, 5.58903, 12.535, 24.3544]"};
-  auto res_sch =
-      arrow::schema({f_unique, f_stddev});
+      "[1, 2, 3, 4, 5, 6, 7, 8 ,9, 10]",
+      "[8.49255, 6.93137, 7.6489, 13.5708, 17.4668, 8.52779, 6.23633, 5.58903, 12.535, "
+      "24.3544]"};
+  auto res_sch = arrow::schema({f_unique, f_stddev});
   MakeInputBatch(expected_result_string, res_sch, &expected_result);
   if (aggr_result_iterator->HasNext()) {
     ASSERT_NOT_OK(aggr_result_iterator->Next(&result_batch));
