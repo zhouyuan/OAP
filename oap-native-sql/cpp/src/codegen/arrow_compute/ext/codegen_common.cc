@@ -295,7 +295,7 @@ arrow::Status CompileCodes(std::string codes, std::string signature) {
   std::string cmd = env_gcc + " -std=c++14 -Wno-deprecated-declarations " + arrow_header +
                     arrow_lib + arrow_lib2 + nativesql_header + nativesql_header_2 +
                     nativesql_lib + cppfile + " -o " + libfile +
-                    " -O2 -march=native -shared -fPIC -fno-semantic-interposition -lspark_columnar_jni 2> " + logfile;
+                    " -g -O2 -march=native -shared -fPIC -fno-semantic-interposition -lspark_columnar_jni 2> " + logfile;
 #ifdef DEBUG
   std::cout << cmd << std::endl;
 #endif
