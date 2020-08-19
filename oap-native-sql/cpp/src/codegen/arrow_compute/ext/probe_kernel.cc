@@ -190,6 +190,10 @@ class ConditionedProbeArraysKernel::Impl {
     for (auto i : right_shuffle_index_list) {
       func_args_ss << i << ",";
     }
+    func_args_ss << "[ResultOrdinal]";
+    for (auto pair : result_schema_index_list) {
+      func_args_ss << pair.first << "_" << pair.second << ",";
+    }
 
 #ifdef DEBUG
     std::cout << "signature original line is " << func_args_ss.str() << std::endl;
