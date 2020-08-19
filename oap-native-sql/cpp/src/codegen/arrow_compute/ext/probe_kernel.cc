@@ -803,7 +803,7 @@ class ConditionedProbeArraysKernel::Impl {
     bool multiple_cols = (left_key_index_list.size() > 1);
     std::string hash_map_include_str = R"(#include "precompile/sparse_hash_map.h")";
     std::string hash_map_type_str =
-        "SparseHashMap<" + GetCTypeString(arrow::int32()) + ">";
+        "SparseHashMap<" + GetCTypeString(arrow::int64()) + ">";
     std::string hash_map_define_str =
         "std::make_shared<" + hash_map_type_str + ">(ctx_->memory_pool());";
     if (!multiple_cols) {
