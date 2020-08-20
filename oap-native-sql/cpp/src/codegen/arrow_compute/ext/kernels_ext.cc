@@ -1274,22 +1274,22 @@ class HashArrayKernel::Impl {
       field_list.push_back(field);
       auto field_node = gandiva::TreeExprBuilder::MakeField(field);
       auto func_node =
-          gandiva::TreeExprBuilder::MakeFunction("hash32", {field_node}, arrow::int32());
+          gandiva::TreeExprBuilder::MakeFunction("hash64", {field_node}, arrow::int64());
       func_node_list.push_back(func_node);
       if (func_node_list.size() == 2) {
         auto shift_func_node = gandiva::TreeExprBuilder::MakeFunction(
             "multiply",
-            {func_node_list[0], gandiva::TreeExprBuilder::MakeLiteral((int32_t)10)},
-            arrow::int32());
+            {func_node_list[0], gandiva::TreeExprBuilder::MakeLiteral((int64_t)10)},
+            arrow::int64());
         auto tmp_func_node = gandiva::TreeExprBuilder::MakeFunction(
-            "add", {shift_func_node, func_node_list[1]}, arrow::int32());
+            "add", {shift_func_node, func_node_list[1]}, arrow::int64());
         func_node_list.clear();
         func_node_list.push_back(tmp_func_node);
       }
       index++;
     }
     expr = gandiva::TreeExprBuilder::MakeExpression(func_node_list[0],
-                                                    arrow::field("res", arrow::int32()));
+                                                    arrow::field("res", arrow::int64()));
 #ifdef DEBUG
     std::cout << expr->ToString() << std::endl;
 #endif

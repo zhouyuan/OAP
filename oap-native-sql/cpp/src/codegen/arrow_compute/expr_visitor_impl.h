@@ -335,7 +335,7 @@ class EncodeVisitorImpl : public ExprVisitorImpl {
       RETURN_NOT_OK(extra::HashArrayKernel::Make(&p_->ctx_, type_list, &concat_kernel_));
     }
 
-    auto result_field = field("res", arrow::uint32());
+    auto result_field = field("res", arrow::uint64());
     p_->result_fields_.push_back(result_field);
     initialized_ = true;
     return arrow::Status::OK();
