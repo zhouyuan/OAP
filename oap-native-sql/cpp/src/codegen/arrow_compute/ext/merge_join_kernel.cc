@@ -816,7 +816,26 @@ class ConditionedJoinArraysKernel::Impl {
     auto field = field_list[key_index_list[0]];
     return GetCTypeString(field->type());
   }
-  std::string GetTupleStr(bool multiple_cols, int size) {
+  std::string GetIdArrayStr(bool cond_check, int join_type){
+    std::stringstream ss;
+    std::string tuple_str;
+    if (cond_check) {
+      tuple_str = "idx_to_arrarid_.emplace_back(cur_array_id_, cur_id_);";
+    } else {
+      tuple_str = "idx_to_arrarid_.emplace_back(cur_array_id_, cur_id_);";
+     if (join_type == 2 || join_type == 3)  {
+      tuple_str = "";
+     }
+    }
+    //if ((join_type == 2 || join_type == 3) && !cond_check) {
+    //  tuple_str = "//" + std::to_string(join_type);
+    //} else {
+    //  tuple_str = "idx_to_arrarid_.emplace_back(cur_array_id_, cur_id_);";
+    //}
+    ss << tuple_str << std::endl;
+    return ss.str();
+  }
+  std::string GetTupleStr(bool multiple_cols, int size){
     std::stringstream ss;
     std::string tuple_str;
     if (multiple_cols) {
@@ -981,6 +1000,7 @@ class ConditionedJoinArraysKernel::Impl {
         GetTypeString(left_field_list[left_key_index_list[0]]->type(), "Array"),
         process_encode_join_key_str);
     auto make_tuple_str = GetTupleStr(multiple_cols, left_key_index_list.size());
+    auto make_idarray_str = GetIdArrayStr(cond_check, join_type);
 
     return BaseCodes() + R"(
 #include "codegen/arrow_compute/ext/array_item_index.h"
@@ -1006,12 +1026,9 @@ class TypedProberImpl : public CodeGenBase {
            R"(
 
     cur_id_ = 0;
-    for (; cur_id_ < typed_array_0->length(); cur_id_++) {)" +
-           make_tuple_str +
-           R"(
-      
-      idx_to_arrarid_.emplace_back(cur_array_id_, cur_id_);
-      idx++;
+    for (; cur_id_ < typed_array_0->length(); cur_id_++) {)"
+    + make_tuple_str + make_idarray_str +
+    R"(
     }
     cur_array_id_++;
     return arrow::Status::OK();
