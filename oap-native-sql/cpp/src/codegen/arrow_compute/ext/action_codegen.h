@@ -465,7 +465,9 @@ class SumActionCodeGen : public ActionCodeGen {
       on_new_prepare_codes_list_.push_back(prepare_codes_ss.str() + "\n");
       on_exists_codes_list_.push_back(on_exists_codes_ss.str() + "\n");
       on_new_codes_list_.push_back(on_new_codes_ss.str() + "\n");
-      on_finish_codes_list_.push_back("");
+      // round sum result to 10 decimal places
+      on_finish_codes_list_.push_back(sig_name + "[i] = round(" + sig_name 
+                                      + "[i] * 10000000000) / 10000000000;\n");
       on_exists_codes_list_.push_back("");
       on_new_codes_list_.push_back("");
       on_finish_codes_list_.push_back("");
