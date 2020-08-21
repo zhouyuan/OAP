@@ -149,7 +149,12 @@ object ConverterUtils extends Logging {
       var result: MessageResult = null
 
       override def hasNext: Boolean =
-        (array_id < (data.size - 1) || input.available > 0) && (!incorrectInput)
+        if ((array_id < (data.size - 1) || input.available > 0) && (!incorrectInput)) {
+          return true
+        } else {
+          messageReader.close
+          return false
+        }
       override def next(): ColumnarBatch = {
         //try {
         if (input.available == 0) {
