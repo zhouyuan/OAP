@@ -45,7 +45,7 @@ class BenchmarkArrowComputeSort : public ::testing::Test {
 #ifdef BENCHMARK_FILE_PATH
     std::string dir_path = BENCHMARK_FILE_PATH;
 #else
-    std::string dir_path = "";
+    std::string dir_path = "file:///tmp/";
 #endif
     std::string path = dir_path + "tpcds_websales_sort_big.parquet";
     std::cout << "This Benchmark used file " << path
@@ -64,8 +64,7 @@ class BenchmarkArrowComputeSort : public ::testing::Test {
 
     ASSERT_NOT_OK(::parquet::arrow::FileReader::Make(
         pool, ::parquet::ParquetFileReader::Open(file), properties, &parquet_reader));
-    ASSERT_NOT_OK(
-        parquet_reader->GetRecordBatchReader({0}, {0, 1, 2}, &record_batch_reader));
+        ASSERT_NOT_OK( parquet_reader->GetRecordBatchReader({0}, {0, 1, 2}, &record_batch_reader));
 
     ////////////////// expr prepration ////////////////
     field_list = record_batch_reader->schema()->fields();
@@ -79,6 +78,8 @@ class BenchmarkArrowComputeSort : public ::testing::Test {
 
     std::shared_ptr<arrow::RecordBatch> record_batch;
 
+      for (int i =0; i<4; i++) {
+        ASSERT_NOT_OK( parquet_reader->GetRecordBatchReader({i}, {0, 1, 2}, &record_batch_reader));
     do {
       TIME_MICRO_OR_THROW(elapse_read, record_batch_reader->ReadNext(&record_batch));
       if (record_batch) {
@@ -86,7 +87,9 @@ class BenchmarkArrowComputeSort : public ::testing::Test {
                             sort_expr->evaluate(record_batch, &dummy_result_batches));
         num_batches += 1;
       }
+      
     } while (record_batch);
+      }
     std::cout << "Readed " << num_batches << " batches." << std::endl;
     TIME_MICRO_OR_THROW(elapse_sort, sort_expr->finish(&sort_result_iterator));
     std::shared_ptr<arrow::RecordBatch> result_batch;

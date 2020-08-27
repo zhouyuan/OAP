@@ -1085,7 +1085,9 @@ struct UnsignedInplaceSorter
         PartitionInfo partitions[256];
         for (It it = begin; it != end; ++it)
         {
-            ++partitions[current_byte(extract_key(*it), sort_data)].count;
+            auto val = extract_key(*it);
+	    uint8_t idx = current_byte(extract_key(*it), sort_data);
+            ++partitions[idx].count;
         }
         size_t total = 0;
         uint8_t remaining_partitions[256];
