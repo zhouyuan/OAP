@@ -38,7 +38,7 @@ git clone --branch branch-0.17.0-oap-0.9 https://github.com/Intel-bigdata/arrow.
 cd arrow/cpp
 mkdir build
 cd build
-cmake -DCMAKE_BUILD_TYPE=Release -DARROW_PARQUET=ON -DARROW_HDFS=ON -DARROW_BOOST_USE_SHARED=ON -DARROW_JNI=ON -DARROW_WITH_SNAPPY=ON -DARROW_WITH_PROTOBUF=ON -DARROW_DATASET=ON ..
+cmake -DCMAKE_BUILD_TYPE=Release -DARROW_DEPENDENCY_SOURCE=BUNDLED -DARROW_PARQUET=ON -DARROW_HDFS=ON -DARROW_BOOST_USE_SHARED=ON -DARROW_JNI=ON -DARROW_WITH_SNAPPY=ON -DARROW_WITH_PROTOBUF=ON -DARROW_DATASET=ON ..
 make
 
 // build and install arrow jvm library
@@ -53,7 +53,7 @@ mvn clean install -P arrow-jni -am -Darrow.cpp.build.dir=../cpp/build/release
 mvn clean package
 
 // check built jar library
-readlink -f target/spark-arrow-datasource-0.9.0-SNAPSHOT-jar-with-dependencies.jar
+readlink -f target/spark-arrow-datasource-0.9.0-jar-with-dependencies.jar
 ```
 
 ### Download Spark 3.0.0
@@ -71,7 +71,7 @@ If you are new to Apache Spark, please go though [Spark's official deploying gui
 ## Get started
 ### Add extra class pathes to Spark
 
-To enable ArrowDataSource, the previous built jar `spark-arrow-datasource-0.9.0-SNAPSHOT-jar-with-dependencies.jar` should be added to Spark configuration. Typically the options are:
+To enable ArrowDataSource, the previous built jar `spark-arrow-datasource-0.9.0-jar-with-dependencies.jar` should be added to Spark configuration. Typically the options are:
 
 * `spark.driver.extraClassPath`
 * `spark.executor.extraClassPath`
