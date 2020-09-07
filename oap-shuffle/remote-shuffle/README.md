@@ -11,7 +11,7 @@ This is an essential part of enabling Spark on disaggregated compute and storage
 
 
 ### Installation
-We have provided a Conda package which will automatically install dependencies needed by OAP, you can refer to [Conda-Installation-Guide](../../docs/Conda-Installation-Guide.md) for more information. If you have finished [Conda-Installation-Guide](../../docs/Conda-Installation-Guide.md), you can find compiled OAP jars in `/root/miniconda2/envs/oapenv/oap_jars/`.
+We have provided a Conda package which will automatically install dependencies needed by OAP, you can refer to [OAP-Installation-Guide](../../docs/OAP-Installation-Guide.md) for more information. If you have finished [OAP-Installation-Guide](../../docs/OAP-Installation-Guide.md), you can find compiled OAP jars in `/root/miniconda2/envs/oapenv/oap_jars/`.
 
 ## Developer Guide
 ### Build and Deploy
@@ -106,7 +106,7 @@ When the backend storage is HDFS, we contact http://$host:$port/conf to fetch co
 
 #### Inherited Spark Shuffle Configurations
 
-These configurations are inherited from upstream Spark, they are still supported in remote shuffle. More explanations can be found in [Spark core docs](https://spark.apache.org/docs/2.4.4/configuration.html#shuffle-behavior) and [Spark SQL docs](https://spark.apache.org/docs/2.4.4/sql-performance-tuning.html).
+These configurations are inherited from upstream Spark, they are still supported in remote shuffle. More explanations can be found in [Spark core docs](https://spark.apache.org/docs/3.0.0/configuration.html#shuffle-behavior) and [Spark SQL docs](https://spark.apache.org/docs/2.4.4/sql-performance-tuning.html).
 ```
     spark.reducer.maxSizeInFlight
     spark.reducer.maxReqsInFlight
