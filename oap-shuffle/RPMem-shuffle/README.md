@@ -498,7 +498,7 @@ spark.io.compression.codec                  			snappy
 ```
 #### Memory configuration suggestion
 
-Suitable for any release before OAP 0.8. In OAP 0.8 release, the memory footprint of each core is reduced dramatically and the formula below is not applicable any more.  
+Suitable for any release before OAP 0.8. In OAP 0.8 and later release, the memory footprint of each core is reduced dramatically and the formula below is not applicable any more.  
 
 Spark.executor.memory must be greater than shuffle\_block\_size \*
 numPartitions \* numCores \* 2 (for both shuffle and external sort), for example, default HiBench Terasort
