@@ -42,15 +42,16 @@ class KMeansDALImpl (
 
     instr.foreach(_.logInfo(s"Processing partitions with $executorNum executors"))
 
-    val partitionDims = Utils.getPartitionDims(data)
     val executorIPAddress = Utils.sparkFirstExecutorIP(data.sparkContext)
 
     // repartition to executorNum if not enough partitions
     val dataForConversion = if (data.getNumPartitions < executorNum) {
-	    data.repartition(executorNum).setName("Repartitioned for conversion").cache()
+      data.repartition(executorNum).setName("Repartitioned for conversion").cache()
     } else {
       data
     }
+
+    val partitionDims = Utils.getPartitionDims(dataForConversion)
     
     // convert RDD[Vector] to RDD[HomogenNumericTable]
     val numericTables = dataForConversion.mapPartitionsWithIndex { (index: Int, it: Iterator[Vector]) =>
