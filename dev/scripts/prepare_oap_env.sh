@@ -10,10 +10,11 @@ GCC_MIN_VERSION=7.0
 LLVM_MIN_VERSION=7.0
 
 if [ -z "$DEV_PATH" ]; then
-  cd $(dirname $BASH_SOURCE)
-  DEV_PATH=`echo $(pwd)`
-  cd -
+  OAP_HOME="$(cd "`dirname "$0"`/../.."; pwd)"
+  DEV_PATH=$OAP_HOME/dev/
 fi
+
+
 
 
 
@@ -48,9 +49,13 @@ function check_maven() {
 function install_maven() {
   yum -y install wget
   cd $DEV_PATH/thirdparty
-  wget https://mirrors.cnnic.cn/apache/maven/maven-3/$MAVEN_TARGET_VERSION/binaries/apache-maven-$MAVEN_TARGET_VERSION-bin.tar.gz
+  if [ ! -f " $DEV_PATH/thirdparty/apache-maven-$MAVEN_TARGET_VERSION-bin.tar.gz" ]; then
+        wget --no-check-certificate https://mirrors.cnnic.cn/apache/maven/maven-3/$MAVEN_TARGET_VERSION/binaries/apache-maven-$MAVEN_TARGET_VERSION-bin.tar.gz
+  fi
+  rm -rf /usr/local/maven
   mkdir -p /usr/local/maven
   tar -xzvf apache-maven-$MAVEN_TARGET_VERSION-bin.tar.gz
+
   mv apache-maven-$MAVEN_TARGET_VERSION/* /usr/local/maven
   echo 'export MAVEN_HOME=/usr/local/maven' >> ~/.bashrc
   echo 'export PATH=$MAVEN_HOME/bin:$PATH' >> ~/.bashrc
@@ -89,7 +94,7 @@ function prepare_cmake() {
       cd $DEV_PATH/thirdparty
       echo " $DEV_PATH/thirdparty/cmake-$CMAKE_TARGET_VERSION.tar.gz"
       if [ ! -f " $DEV_PATH/thirdparty/cmake-$CMAKE_TARGET_VERSION.tar.gz" ]; then
-        wget $TARGET_CMAKE_SOURCE_URL
+        wget --no-check-certificate $TARGET_CMAKE_SOURCE_URL
       fi
       tar xvf cmake-$CMAKE_TARGET_VERSION.tar.gz
       cd cmake-$CMAKE_TARGET_VERSION/
@@ -106,7 +111,7 @@ function prepare_cmake() {
     cd $DEV_PATH/thirdparty
     echo " $DEV_PATH/thirdparty/cmake-$CMAKE_TARGET_VERSION.tar.gz"
     if [ ! -f "cmake-$CMAKE_TARGET_VERSION.tar.gz" ]; then
-      wget $TARGET_CMAKE_SOURCE_URL
+      wget --no-check-certificate $TARGET_CMAKE_SOURCE_URL
     fi
 
     tar xvf cmake-$CMAKE_TARGET_VERSION.tar.gz
@@ -137,7 +142,7 @@ function prepare_memkind() {
   yum -y install libtool
   yum -y install numactl-devel
   yum -y install unzip
-  yum -y install libnuma-devel
+  yum -y install make
 
   ./autogen.sh
   ./configure
@@ -167,7 +172,7 @@ function prepare_vmemcache() {
   yum -y install rpm-build
   cmake .. -DCMAKE_INSTALL_PREFIX=/usr -DCPACK_GENERATOR=rpm
   make package
-  sudo rpm -i libvmemcache*.rpm
+  rpm -i libvmemcache*.rpm
 }
 
 function install_gcc7() {
@@ -182,7 +187,7 @@ function install_gcc7() {
   if [ ! -d "gcc-7.3.0" ]; then
     if [ ! -f "gcc-7.3.0.tar" ]; then
       if [ ! -f "gcc-7.3.0.tar.xz" ]; then
-        wget https://bigsearcher.com/mirrors/gcc/releases/gcc-7.3.0/gcc-7.3.0.tar.xz
+        wget  --no-check-certificate https://bigsearcher.com/mirrors/gcc/releases/gcc-7.3.0/gcc-7.3.0.tar.xz
       fi
       xz -d gcc-7.3.0.tar.xz
     fi
@@ -206,7 +211,7 @@ function prepare_llvm() {
   cd $DEV_PATH/thirdparty/llvm
   if [ ! -d "llvm-7.0.1.src" ]; then
     if [ ! -f "llvm-7.0.1.src.tar.xz" ]; then
-      wget http://releases.llvm.org/7.0.1/llvm-7.0.1.src.tar.xz
+      wget --no-check-certificate http://releases.llvm.org/7.0.1/llvm-7.0.1.src.tar.xz
     fi
     tar xf llvm-7.0.1.src.tar.xz
   fi
@@ -216,7 +221,7 @@ function prepare_llvm() {
 
   if [ ! -d "clang" ]; then
     if [ ! -f "cfe-7.0.1.src.tar.xz" ]; then
-      wget http://releases.llvm.org/7.0.1/cfe-7.0.1.src.tar.xz
+      wget --no-check-certificate http://releases.llvm.org/7.0.1/cfe-7.0.1.src.tar.xz
       tar xf cfe-7.0.1.src.tar.xz
     fi
     mv cfe-7.0.1.src clang
@@ -308,6 +313,7 @@ function prepare_HPNL(){
 }
 
 function prepare_ndctl() {
+  yum install -y epel-release
   yum install -y autoconf asciidoctor kmod-devel.x86_64 libudev-devel libuuid-devel json-c-devel jemalloc-devel
   yum groupinstall -y "Development Tools"
   mkdir -p $DEV_PATH/thirdparty
@@ -370,7 +376,6 @@ function prepare_oneAPI() {
 }
 
 
-
 function  prepare_all() {
   prepare_maven
   prepare_memkind
@@ -403,61 +408,66 @@ case $key in
     shift 1 
     echo "Start to install all compile-time dependencies for OAP ..."
     prepare_all
-    exit 1
+    exit 0
     ;;
     --prepare_maven)
     shift 1 
     prepare_maven
-    exit 1
+    exit 0
     ;;
     --prepare_memkind)
     shift 1 
     prepare_memkind
-    exit 1
+    exit 0
     ;;
     --prepare_cmake)
     shift 1 
     prepare_cmake
-    exit 1
+    exit 0
     ;;
     --install_gcc7)
     shift 1 
     install_gcc7
-    exit 1
+    exit 0
     ;;
     --prepare_vmemcache)
     shift 1 
     prepare_vmemcache
-    exit 1
+    exit 0
     ;;
     --prepare_intel_arrow)
     shift 1 
     prepare_intel_arrow
-    exit 1
+    exit 0
     ;;
     --prepare_HPNL)
     shift 1 
     prepare_HPNL
-    exit 1
+    exit 0
     ;;
     --prepare_PMDK)
     shift 1 
     prepare_PMDK
-    exit 1
+    exit 0
     ;;
     --prepare_PMoF)
     shift 1 
     prepare_PMoF
-    exit 1
+    exit 0
     ;;
     --prepare_llvm)
     shift 1 
     prepare_llvm
-    exit 1
+    exit 0
+    ;;
+    --prepare_llvm)
+    shift 1
+    prepare_llvm
+    exit 0
     ;;
     *)    # unknown option
     echo "Unknown option "
-    echo "usage: ./prepare_oap_env.sh [options]"
+    echo "usage: sh prepare_oap_env.sh [options]"
     echo "Options: "
     oap_build_help
     exit 1
