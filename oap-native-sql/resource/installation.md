@@ -86,18 +86,21 @@ spark.sql.extensions com.intel.oap.ColumnarPlugin
 spark.shuffle.manager org.apache.spark.shuffle.sort.ColumnarShuffleManager
 
 # note native sql engine depends on arrow data source
-spark.driver.extraClassPath /root/miniconda2/envs/${YOUR_ENV_NAME}/oap_jars/spark-columnar-core-0.9.0-jar-with-dependencies.jar:/root/miniconda2/envs/${YOUR_ENV_NAME}/oap_jars/spark-arrow-datasource-0.9.0-SNAPSHOT-jar-with-dependencies.jar
-spark.executor.extraClassPath /root/miniconda2/envs/${YOUR_ENV_NAME}/oap_jars/spark-columnar-core-0.9.0-jar-with-dependencies.jar:/root/miniconda2/envs/${YOUR_ENV_NAME}/oap_jars/spark-arrow-datasource-0.9.0-SNAPSHOT-jar-with-dependencies.jar
+spark.driver.extraClassPath /root/miniconda2/envs/${YOUR_ENV_NAME}/oap_jars/spark-columnar-core-0.9.0-jar-with-dependencies.jar:/root/miniconda2/envs/${YOUR_ENV_NAME}/oap_jars/spark-arrow-datasource-0.9.0-jar-with-dependencies.jar
+spark.executor.extraClassPath /root/miniconda2/envs/${YOUR_ENV_NAME}/oap_jars/spark-columnar-core-0.9.0-jar-with-dependencies.jar:/root/miniconda2/envs/${YOUR_ENV_NAME}/oap_jars/spark-arrow-datasource-0.9.0-jar-with-dependencies.jar
 
 ######
 ```
 About spark-arrow-datasource.jar, you can refer [Unified Arrow Data Source ](../../oap-data-source/arrow/README.md).                                                                                         
-Verify if native sql engine works with scala script or jupyter notebook:
+Here's one example to verify if native sql engine works. We could do a simple projection on one parquet table.
 ```
 val orders = spark.read.format("arrow").load("hdfs:////user/root/date_tpch_10/orders")
 orders.createOrReplaceTempView("orders")
-spark.sql("select o_orderdate from orders").show
+spark.sql("select * from orders where o_orderdate > date '1998-07-26'").show(20000, false)
 ```
+
+The result should showup on Spark console and there should be a similar diagram in the SQL page of Spark history:
+![UI](/oap-native-sql/resource/historyui.png)
 
 ## Performance data
 
