@@ -1064,7 +1064,7 @@ private:
         std::vector<ArrayItemIndex> *idx_to_arrarid)" +
            result_iter_params_str + R"(
         )
-        : ctx_(ctx), result_schema_(schema), left_list_(left_list), idx_to_arrarid_(idx_to_arrarid) {
+        : ctx_(ctx), result_schema_(schema), left_list_(left_list), last_pos(0), idx_to_arrarid_(idx_to_arrarid) {
             )" +
            result_iter_set_str + result_iter_prepare_str + R"(
     }
@@ -1079,7 +1079,7 @@ private:
            process_get_typed_array_str +
            R"(
       auto length = cached_1_0_->length();
-      auto left_it = left_list_->begin();
+      auto left_it = left_list_->begin() + last_pos;
       int last_match_idx = -1;
 
       for (int i = 0; i < length; i++) {)" +
@@ -1087,6 +1087,7 @@ private:
       }
       )" + process_finish_str +
            R"(
+      last_pos = std::distance(left_list_->begin(), left_it);
       *out = arrow::RecordBatch::Make(
           result_schema_, out_length,
           {)" +
@@ -1099,6 +1100,7 @@ private:
     arrow::compute::FunctionContext *ctx_;
     std::shared_ptr<arrow::Schema> result_schema_;
     std::shared_ptr<std::vector<list_item>> left_list_;
+    int64_t last_pos;
     std::vector<ArrayItemIndex> *idx_to_arrarid_;
 )" + result_iter_cached_define_str +
            R"(

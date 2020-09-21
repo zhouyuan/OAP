@@ -132,14 +132,8 @@ class ColumnarSorter(
       var resultCb :ColumnarBatch = null
       var nextBatch: ArrowRecordBatch = null
       var batchIterator: BatchIterator = null
-      // true: called hasNext but didnt call next
-      var nextCalled = false
 
       override def hasNext: Boolean = {
-        //TODO: add JNI call for result iterator and refactor this api
-        if (nextCalled == false && resultCb != null) {
-           return true
-        }
         if (sort_iterator == null) {
           while (cbIterator.hasNext) {
             cb = cbIterator.next()
@@ -155,23 +149,16 @@ class ColumnarSorter(
           sort_elapse += System.nanoTime() - beforeSort
           total_elapse += System.nanoTime() - beforeSort
         }
+        return sort_iterator.hasNext()
 
-        nextCalled = false
+      }
+
+      override def next(): ColumnarBatch = {
         val beforeShuffle = System.nanoTime()
         nextBatch = sort_iterator.next()
         resultCb = getSorterResult(nextBatch)
         shuffle_elapse += System.nanoTime() - beforeShuffle
         total_elapse += System.nanoTime() - beforeShuffle
-
-        if (nextBatch == null) {
-          return false
-        } else {
-          return true
-        }
-      }
-
-      override def next(): ColumnarBatch = {
-        nextCalled = true
         outputBatches += 1
         outputRows += nextBatch.getLength()
         resultCb
