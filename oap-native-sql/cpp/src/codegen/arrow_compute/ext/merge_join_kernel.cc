@@ -475,7 +475,7 @@ class ConditionedJoinArraysKernel::Impl {
             }
             auto old_it = left_it;
             while(*left_it == right_content && left_it != left_list_->end()) {
-              auto tmp = (*idx_to_arrarid_)[std::distance(left_list_->begin(), left_it)];)" +
+              auto tmp = GetArrayItemIdex(left_it);)" +
            shuffle_str + R"(
               //if (*left_it > right_content && left_it != left_list_->end()){
               //continue;
@@ -523,7 +523,7 @@ class ConditionedJoinArraysKernel::Impl {
   }
   auto old_it = left_it;
   while(*left_it == typed_array_0->GetView(i) && left_it != left_list_->end()) {
-    auto tmp = (*idx_to_arrarid_)[std::distance(left_list_->begin(), left_it)];
+    auto tmp = GetArrayItemIdex(left_it);
           )" +  // TODO: cond check
            left_valid_ss.str() +
            right_valid_ss.str() + R"(
@@ -536,7 +536,7 @@ class ConditionedJoinArraysKernel::Impl {
           if (last_match_idx == i) {
             continue;
           }
-          auto tmp = (*idx_to_arrarid_)[std::distance(left_list_->begin(), left_it)];
+          auto tmp = GetArrayItemIdex(left_it);
             )" +
            left_null_ss.str() + right_valid_ss.str() + R"(
              out_length += 1;
@@ -550,7 +550,7 @@ class ConditionedJoinArraysKernel::Impl {
         } else {
           auto old_it = left_it;
           while(*left_it == typed_array_0->GetView(i) && left_it != left_list_->end()) { 
-            auto tmp = (*idx_to_arrarid_)[std::distance(left_list_->begin(), left_it)];
+            auto tmp = GetArrayItemIdex(left_it);
             )" +
            left_valid_ss.str() + right_valid_ss.str() + R"(
             left_it++;
@@ -576,7 +576,7 @@ class ConditionedJoinArraysKernel::Impl {
     if (cond_check) {
       shuffle_str = R"(
           hasequaled = true;
-          auto tmp = (*idx_to_arrarid_)[std::distance(left_list_->begin(), left_it)];
+          auto tmp = GetArrayItemIdex(left_it);
             if (ConditionCheck(tmp, i)) {
               found = true;
               break;
@@ -638,7 +638,7 @@ class ConditionedJoinArraysKernel::Impl {
     if (cond_check) {
       shuffle_str = R"(
         while (*left_it == typed_array_0->GetView(i) && left_it != left_list_->end()) {
-            auto tmp = (*idx_to_arrarid_)[std::distance(left_list_->begin(), left_it)]; 
+            auto tmp = GetArrayItemIdex(left_it);
               if (ConditionCheck(tmp, i)) {
                 )" + ss.str() +
                     R"(
@@ -816,26 +816,21 @@ class ConditionedJoinArraysKernel::Impl {
     auto field = field_list[key_index_list[0]];
     return GetCTypeString(field->type());
   }
-  std::string GetIdArrayStr(bool cond_check, int join_type){
+  std::string GetIdArrayStr(bool cond_check, int join_type) {
     std::stringstream ss;
     std::string tuple_str;
     if (cond_check) {
-      tuple_str = "idx_to_arrarid_.emplace_back(cur_array_id_, cur_id_);";
+      tuple_str = "idx_to_arrarid_.emplace_back(cur_array_id_);";
     } else {
-      tuple_str = "idx_to_arrarid_.emplace_back(cur_array_id_, cur_id_);";
-     if (join_type == 2 || join_type == 3)  {
-      tuple_str = "";
-     }
+      tuple_str = "idx_to_arrarid_.emplace_back(cur_array_id_);";
+      if (join_type == 2 || join_type == 3) {
+        tuple_str = "";
+      }
     }
-    //if ((join_type == 2 || join_type == 3) && !cond_check) {
-    //  tuple_str = "//" + std::to_string(join_type);
-    //} else {
-    //  tuple_str = "idx_to_arrarid_.emplace_back(cur_array_id_, cur_id_);";
-    //}
     ss << tuple_str << std::endl;
     return ss.str();
   }
-  std::string GetTupleStr(bool multiple_cols, int size){
+  std::string GetTupleStr(bool multiple_cols, int size) {
     std::stringstream ss;
     std::string tuple_str;
     if (multiple_cols) {
@@ -1016,7 +1011,7 @@ class TypedProberImpl : public CodeGenBase {
            hash_map_define_str +
            R"(
     left_list_->reserve(3000000);
-    idx_to_arrarid_.reserve(3000000);
+
   }
   ~TypedProberImpl() {}
 
@@ -1026,12 +1021,12 @@ class TypedProberImpl : public CodeGenBase {
            R"(
 
     cur_id_ = 0;
-    for (; cur_id_ < typed_array_0->length(); cur_id_++) {)"
-    + make_tuple_str + make_idarray_str +
-    R"(
+    for (; cur_id_ < typed_array_0->length(); cur_id_++) {)" +
+           make_tuple_str  +
+           R"(
     }
-    cur_array_id_++;
-    return arrow::Status::OK();
+    cur_array_id_+= typed_array_0->length();)" + make_idarray_str +
+    R"(return arrow::Status::OK();
   }
 
   arrow::Status MakeResultIterator(
@@ -1051,7 +1046,7 @@ private:
   uint64_t num_items_ = 0;
   arrow::compute::FunctionContext *ctx_;
   std::shared_ptr<std::vector<list_item>> left_list_;
-  std::vector<ArrayItemIndex> idx_to_arrarid_;
+  std::vector<int64_t> idx_to_arrarid_;
   )" + impl_cached_define_str +
            R"( 
 
@@ -1061,7 +1056,7 @@ private:
         arrow::compute::FunctionContext *ctx,
         std::shared_ptr<arrow::Schema> schema,
         std::shared_ptr<std::vector<list_item>> left_list,
-        std::vector<ArrayItemIndex> *idx_to_arrarid)" +
+        std::vector<int64_t> *idx_to_arrarid)" +
            result_iter_params_str + R"(
         )
         : ctx_(ctx), result_schema_(schema), left_list_(left_list), last_pos(0), idx_to_arrarid_(idx_to_arrarid) {
@@ -1070,6 +1065,19 @@ private:
     }
 
     std::string ToString() override { return "ProberResultIterator"; }
+
+    ArrayItemIndex GetArrayItemIdex(std::vector<list_item>::iterator left_it) {
+      auto cur_pos = std::distance(left_list_->begin(), left_it);
+      auto upper = std::upper_bound(idx_to_arrarid_->begin(), idx_to_arrarid_->end(), cur_pos);
+      auto upper_idx = std::distance(idx_to_arrarid_->begin(), upper);
+      int64_t local_idx;
+      if (upper == idx_to_arrarid_->begin()) {
+        local_idx = cur_pos;
+      } else {
+        local_idx = cur_pos - *(upper-1);
+      }
+      return ArrayItemIndex(upper_idx, local_idx);
+    }
 
     arrow::Status
     Process(const ArrayList &in, std::shared_ptr<arrow::RecordBatch> *out,
@@ -1101,7 +1109,7 @@ private:
     std::shared_ptr<arrow::Schema> result_schema_;
     std::shared_ptr<std::vector<list_item>> left_list_;
     int64_t last_pos;
-    std::vector<ArrayItemIndex> *idx_to_arrarid_;
+    std::vector<int64_t> *idx_to_arrarid_;
 )" + result_iter_cached_define_str +
            R"(
       )" + condition_check_str +
