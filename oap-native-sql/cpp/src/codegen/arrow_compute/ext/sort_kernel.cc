@@ -763,27 +763,35 @@ class SortOnekeyKernel<DATATYPE, CTYPE, enable_if_number<CTYPE>>
     // we should support nulls first and nulls last here
     // we should also support desc and asc here
     for (int array_id = 0; array_id < num_batches_; array_id++) {
-      for (int64_t i = 0; i < length_list_[array_id]; i++) {
-        if (nulls_first_) {
-          if (!cached_key_[array_id]->IsNull(i)) {
-            (indices_begin + nulls_total_ + indices_i)->array_id = array_id;
-            (indices_begin + nulls_total_ + indices_i)->id = i;
-            indices_i++;
+      if (cached_key_[array_id]->null_count()) {
+        for (int64_t i = 0; i < length_list_[array_id]; i++) {
+          if (nulls_first_) {
+            if (!cached_key_[array_id]->IsNull(i)) {
+              (indices_begin + nulls_total_ + indices_i)->array_id = array_id;
+              (indices_begin + nulls_total_ + indices_i)->id = i;
+              indices_i++;
+            } else {
+              (indices_begin + indices_null)->array_id = array_id;
+              (indices_begin + indices_null)->id = i;
+              indices_null++;
+            }
           } else {
-            (indices_begin + indices_null)->array_id = array_id;
-            (indices_begin + indices_null)->id = i;
-            indices_null++;
+            if (!cached_key_[array_id]->IsNull(i)) {
+              (indices_begin + indices_i)->array_id = array_id;
+              (indices_begin + indices_i)->id = i;
+              indices_i++;
+            } else {
+              (indices_end - nulls_total_ + indices_null)->array_id = array_id;
+              (indices_end - nulls_total_ + indices_null)->id = i;
+              indices_null++;
+            }
           }
-        } else {
-          if (!cached_key_[array_id]->IsNull(i)) {
-            (indices_begin + indices_i)->array_id = array_id;
-            (indices_begin + indices_i)->id = i;
-            indices_i++;
-          } else {
-            (indices_end - nulls_total_ + indices_null)->array_id = array_id;
-            (indices_end - nulls_total_ + indices_null)->id = i;
-            indices_null++;
-          }
+        }
+      } else {
+        for (int64_t i = 0; i < length_list_[array_id]; i++) {
+          (indices_begin + nulls_total_ + indices_i)->array_id = array_id;
+          (indices_begin + nulls_total_ + indices_i)->id = i;
+          indices_i++;
         }
       }
     }
@@ -989,27 +997,35 @@ class SortOnekeyKernel<DATATYPE, CTYPE, enable_if_string<CTYPE>>
     // we should support nulls first and nulls last here
     // we should also support desc and asc here
     for (int array_id = 0; array_id < num_batches_; array_id++) {
-      for (int64_t i = 0; i < length_list_[array_id]; i++) {
-        if (nulls_first_) {
-          if (!cached_key_[array_id]->IsNull(i)) {
-            (indices_begin + nulls_total_ + indices_i)->array_id = array_id;
-            (indices_begin + nulls_total_ + indices_i)->id = i;
-            indices_i++;
+      if (cached_key_[array_id]->null_count()) {
+        for (int64_t i = 0; i < length_list_[array_id]; i++) {
+          if (nulls_first_) {
+            if (!cached_key_[array_id]->IsNull(i)) {
+              (indices_begin + nulls_total_ + indices_i)->array_id = array_id;
+              (indices_begin + nulls_total_ + indices_i)->id = i;
+              indices_i++;
+            } else {
+              (indices_begin + indices_null)->array_id = array_id;
+              (indices_begin + indices_null)->id = i;
+              indices_null++;
+            }
           } else {
-            (indices_begin + indices_null)->array_id = array_id;
-            (indices_begin + indices_null)->id = i;
-            indices_null++;
+            if (!cached_key_[array_id]->IsNull(i)) {
+              (indices_begin + indices_i)->array_id = array_id;
+              (indices_begin + indices_i)->id = i;
+              indices_i++;
+            } else {
+              (indices_end - nulls_total_ + indices_null)->array_id = array_id;
+              (indices_end - nulls_total_ + indices_null)->id = i;
+              indices_null++;
+            }
           }
-        } else {
-          if (!cached_key_[array_id]->IsNull(i)) {
-            (indices_begin + indices_i)->array_id = array_id;
-            (indices_begin + indices_i)->id = i;
-            indices_i++;
-          } else {
-            (indices_end - nulls_total_ + indices_null)->array_id = array_id;
-            (indices_end - nulls_total_ + indices_null)->id = i;
-            indices_null++;
-          }
+        }
+      } else {
+        for (int64_t i = 0; i < length_list_[array_id]; i++) {
+          (indices_begin + nulls_total_ + indices_i)->array_id = array_id;
+          (indices_begin + nulls_total_ + indices_i)->id = i;
+          indices_i++;
         }
       }
     }
