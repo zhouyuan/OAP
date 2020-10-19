@@ -83,7 +83,7 @@ class ColumnarSortMergeJoinExec(
   override def supportsColumnar = true
   override def supportCodegen: Boolean = false
 
-  val signature =
+  def getCodeGenSignature =
     if (resultSchema.size > 0 && !leftKeys
           .filter(expr => bindReference(expr, left.output, true).isInstanceOf[BoundReference])
           .isEmpty && !rightKeys
@@ -107,21 +107,25 @@ class ColumnarSortMergeJoinExec(
       ""
     }
 
-  val listJars = if (signature != "") {
-    if (sparkContext.listJars.filter(path => path.contains(s"${signature}.jar")).isEmpty) {
-      val tempDir = ColumnarPluginConfig.getRandomTempDir
-      val jarFileName =
-        s"${tempDir}/tmp/spark-columnar-plugin-codegen-precompile-${signature}.jar"
-      sparkContext.addJar(jarFileName)
-    }
-    sparkContext.listJars.filter(path => path.contains(s"${signature}.jar"))
-  } else {
-    List()
-  }
 
-  listJars.foreach(jar => logInfo(s"Uploaded ${jar}"))
+
+  def uploadAndListJars(signature: String): Seq[String] =
+    if (signature != "") {
+      if (sparkContext.listJars.filter(path => path.contains(s"${signature}.jar")).isEmpty) {
+        val tempDir = ColumnarPluginConfig.getRandomTempDir
+        val jarFileName =
+          s"${tempDir}/tmp/spark-columnar-plugin-codegen-precompile-${signature}.jar"
+        sparkContext.addJar(jarFileName)
+      }
+      sparkContext.listJars.filter(path => path.contains(s"${signature}.jar"))
+    } else {
+      List()
+    }
 
   override def doExecuteColumnar(): RDD[ColumnarBatch] = {
+    val signature = getCodeGenSignature
+    val listJars = uploadAndListJars(signature)
+    listJars.foreach(jar => logInfo(s"Uploaded ${jar}"))
     right.executeColumnar().zipPartitions(left.executeColumnar()) {
       (streamIter, buildIter) =>
         ColumnarPluginConfig.getConf(sparkConf)
