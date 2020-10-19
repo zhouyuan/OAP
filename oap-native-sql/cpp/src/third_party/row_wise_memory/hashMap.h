@@ -37,6 +37,56 @@ typedef struct {
   char* bytesMap;  // use to save the  key-row, and value row.
 } unsafeHashMap;   /*general purpose hash structure*/
 
+static inline void dump(unsafeHashMap* hm) {
+  printf("=================== HashMap DUMP =======================\n");
+  printf("keyarray capacity is %d\n", hm->arrayCapacity);
+  printf("bytemap capacity is %d\n", hm->mapSize);
+  printf("cursor is %d\n", hm->cursor);
+  printf("numKeys is %d\n", hm->numKeys);
+  printf("numValues is %d\n", hm->numValues);
+  printf("keyArray[offset_in_bytesMap, hashVal] is\n");
+  for (int i = 0; i < hm->arrayCapacity * 2; i = i + 2) {
+    printf("%d: ", i / 2);
+    printf("%04x    ", hm->keyArray[i]);
+    printf("%04x    ", hm->keyArray[i + 1]);
+    printf("\n");
+  }
+  printf("bytesMap is\n");
+  int pos = 0;
+  int idx = 0;
+  while (pos < hm->cursor) {
+    printf("%d: ", idx++);
+    auto total_length = *(int*)(hm->bytesMap + pos);
+    auto key_length = *(int*)(hm->bytesMap + pos + 4);
+    auto value_length = total_length - key_length - 4;
+    total_length += 8;
+    printf("[%04x, %d, %d, %d]", pos, total_length, key_length, value_length);
+    printf("%04x  ", *(int*)(hm->bytesMap + pos));      // total_length
+    printf("%04x  ", *(int*)(hm->bytesMap + pos + 4));  // key_length
+    int i = 0;
+    while (i < key_length) {
+      printf("%04x  ", *(int*)(hm->bytesMap + pos + 8 + i));  // key_data
+      i += 4;
+    }
+    i = 0;
+    while (i < value_length) {
+      if ((value_length - i) < 4) {
+        int tmp = 0;
+        memcpy(&tmp, (hm->bytesMap + pos + 8 + key_length + i), (value_length - i));
+        printf("%04x  ", tmp);  // value_data
+        i = value_length;
+      } else {
+        printf("%04x  ", *(int*)(hm->bytesMap + pos + 8 + key_length + i));  // value_data
+        i += 4;
+      }
+    }
+    printf("%04x  ",
+           *(int*)(hm->bytesMap + pos + 8 + key_length + value_length));  // next_ptr
+    printf("\n");
+    pos += total_length;
+  }
+}
+
 static inline int getTotalLength(char* base) { return *((int*)base); }
 
 static inline int getKeyLength(char* base) { return *((int*)(base + 4)); }
@@ -208,7 +258,6 @@ static inline int safeLookup(unsafeHashMap* hashMap, std::shared_ptr<UnsafeRow> 
     } else {
       if ((int)keyHashCode == hashVal) {
         // Full hash code matches.  Let's compare the keys for equality.
-
         char* record = base + KeyAddressOffset;
         if ((getKeyLength(record) == keyLength) &&
             (memcmp(keyRow->data, getKeyFromBytesMap(record), keyLength) == 0)) {
@@ -347,7 +396,7 @@ static inline bool append(unsafeHashMap* hashMap, UnsafeRow* keyRow, int hashVal
           klen = 0;
 
           // Update hashMap
-          hashMap->cursor += recordLength;
+          hashMap->cursor += (8 + klen + vlen + 4);
           hashMap->numValues++;
           break;
         }

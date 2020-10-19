@@ -562,11 +562,7 @@ class EncodeVisitorImpl : public ExprVisitorImpl {
     return arrow::Status::OK();
   }
 
-  arrow::Status Finish() override {
-    std::cout << "Concat keys took " << TIME_TO_STRING(concat_elapse_time) << std::endl;
-
-    return arrow::Status::OK();
-  }
+  arrow::Status Finish() override { return arrow::Status::OK(); }
 
  private:
   std::vector<int> col_id_list_;
@@ -717,9 +713,11 @@ class ConditionedProbeArraysVisitorImpl : public ExprVisitorImpl {
         std::dynamic_pointer_cast<gandiva::FunctionNode>(children[3])->children();
     result_field_list_ =
         std::dynamic_pointer_cast<gandiva::FunctionNode>(children[4])->children();
-    if (children.size() > 5) {
+    hash_configuration_list_ =
+        std::dynamic_pointer_cast<gandiva::FunctionNode>(children[5])->children();
+    if (children.size() > 6) {
       condition_ =
-          std::dynamic_pointer_cast<gandiva::FunctionNode>(children[5])->children()[0];
+          std::dynamic_pointer_cast<gandiva::FunctionNode>(children[6])->children()[0];
     }
   }
   static arrow::Status Make(std::vector<std::shared_ptr<arrow::Field>> field_list,
@@ -738,7 +736,8 @@ class ConditionedProbeArraysVisitorImpl : public ExprVisitorImpl {
     }
     RETURN_NOT_OK(extra::ConditionedProbeKernel::Make(
         &p_->ctx_, left_key_list_, right_key_list_, left_field_list_, right_field_list_,
-        condition_, join_type_, result_field_list_, 0, &kernel_));
+        condition_, join_type_, result_field_list_, hash_configuration_list_, 0,
+        &kernel_));
     p_->signature_ = kernel_->GetSignature();
     initialized_ = true;
     finish_return_type_ = ArrowComputeResultType::BatchIterator;
@@ -791,6 +790,7 @@ class ConditionedProbeArraysVisitorImpl : public ExprVisitorImpl {
   gandiva::NodeVector left_field_list_;
   gandiva::NodeVector right_field_list_;
   gandiva::NodeVector result_field_list_;
+  gandiva::NodeVector hash_configuration_list_;
 };
 
 ////////////////////////// ConditionedJoinArraysVisitorImpl ///////////////////////

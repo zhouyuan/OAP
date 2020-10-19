@@ -106,6 +106,8 @@ class TypedHashRelationColumn<DataType, enable_if_string_like<DataType>>
 
 class HashRelation {
  public:
+  HashRelation(arrow::compute::FunctionContext* ctx) {}
+
   HashRelation(
       const std::vector<std::shared_ptr<HashRelationColumn>>& hash_relation_list) {
     hash_relation_column_list_ = hash_relation_list;
@@ -115,11 +117,11 @@ class HashRelation {
       arrow::compute::FunctionContext* ctx,
       const std::vector<std::shared_ptr<HashRelationColumn>>& hash_relation_column)
       : HashRelation(hash_relation_column) {
-    hash_table_ = createUnsafeHashMap(1024 * 1024 * 4, 256 * 1024 * 1024);
+    hash_table_ = createUnsafeHashMap(1024 * 1024, 256 * 1024 * 1024);
   }
 
   ~HashRelation() {
-    if (hash_table_ != nullptr) {
+    if (hash_table_ != nullptr && !unsafe_set) {
       destroyHashMap(hash_table_);
       hash_table_ = nullptr;
     }
@@ -147,7 +149,9 @@ class HashRelation {
   }
 
   int Get(int32_t v, std::shared_ptr<UnsafeRow> payload) {
-    assert(hash_table_ != nullptr);
+    if (hash_table_ == nullptr) {
+      throw std::runtime_error("HashRelation Get failed, hash_table is null.");
+    }
     std::vector<char*> res_out;
     auto res = safeLookup(hash_table_, payload, v, &res_out);
     if (res == -1) return -1;
@@ -174,9 +178,44 @@ class HashRelation {
     return arrow::Status::OK();
   }
 
+  arrow::Status UnsafeGetHashTableObject(int64_t* addrs, int* sizes) {
+    if (hash_table_ == nullptr) {
+      return arrow::Status::Invalid("UnsafeGetHashTableObject hash_table is null");
+    }
+    // dump(hash_table_);
+    std::cout << "HashRelation UnsafeGetHashTableObject contains numKeys of "
+              << hash_table_->numKeys << std::endl;
+    addrs[0] = (int64_t)hash_table_;
+    sizes[0] = (int)sizeof(unsafeHashMap);
+
+    addrs[1] = (int64_t)(hash_table_->keyArray);
+    sizes[1] = (int)(hash_table_->arrayCapacity * 2 * 4);
+
+    addrs[2] = (int64_t)(hash_table_->bytesMap);
+    sizes[2] = (int)(hash_table_->cursor);
+    return arrow::Status::OK();
+  }
+
+  arrow::Status UnsafeSetHashTableObject(int len, int64_t* addrs, int* sizes) {
+    assert(len == 3);
+    hash_table_ = (unsafeHashMap*)addrs[0];
+    hash_table_->cursor = sizes[2];
+    hash_table_->keyArray = (int*)addrs[1];
+    hash_table_->bytesMap = (char*)addrs[2];
+    unsafe_set == true;
+    // dump(hash_table_);
+    return arrow::Status::OK();
+  }
+
+  arrow::Status DumpHashMap() {
+    dump(hash_table_);
+    return arrow::Status::OK();
+  }
+
   virtual std::vector<ArrayItemIndex> GetItemListByIndex(int i) { return arrayid_list_; }
 
  protected:
+  bool unsafe_set = false;
   uint64_t num_arrays_ = 0;
   std::vector<std::shared_ptr<HashRelationColumn>> hash_relation_column_list_;
   unsafeHashMap* hash_table_ = nullptr;

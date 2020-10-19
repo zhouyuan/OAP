@@ -100,7 +100,7 @@ class HashRelationKernel::Impl {
         THROW_NOT_OK(MakeHashRelation(project_expr->result()->type()->id(), ctx_,
                                       hash_relation_list, &hash_relation_));
       }
-    } else {
+    } else if (builder_type_ == 1) {
       // we will use unsafe_row and new unsafe_hash_map
       gandiva::ExpressionVector key_project_expr = GetGandivaKernel(key_nodes);
       gandiva::ExpressionPtr key_hash_expr = GetHash32Kernel(key_nodes);
@@ -116,6 +116,8 @@ class HashRelationKernel::Impl {
       hash_input_schema_ = arrow::schema(key_hash_field_list);
       THROW_NOT_OK(gandiva::Projector::Make(hash_input_schema_, {key_hash_expr},
                                             configuration, &key_projector_));
+      hash_relation_ = std::make_shared<HashRelation>(ctx_, hash_relation_list);
+    } else {
       hash_relation_ = std::make_shared<HashRelation>(ctx_, hash_relation_list);
     }
   }
@@ -192,6 +194,15 @@ class HashRelationKernel::Impl {
 
     arrow::Status Next(std::shared_ptr<HashRelation>* out) override {
       *out = hash_relation_;
+      return arrow::Status::OK();
+    }
+
+    arrow::Status ProcessAndCacheOne(
+        const std::vector<std::shared_ptr<arrow::Array>>& in,
+        const std::shared_ptr<arrow::Array>& selection = nullptr) override {
+      for (int i = 0; i < in.size(); i++) {
+        RETURN_NOT_OK(hash_relation_->AppendPayloadColumn(i, in[i]));
+      }
       return arrow::Status::OK();
     }
 
