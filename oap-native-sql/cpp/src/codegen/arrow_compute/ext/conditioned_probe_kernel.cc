@@ -202,9 +202,8 @@ class ConditionedProbeKernel::Impl {
     idx = 0;
     auto unsafe_row_name = "unsafe_row_" + std::to_string(hash_relation_id_);
     prepare_ss << "std::shared_ptr<UnsafeRow> " << unsafe_row_name
-               << " = std::make_shared<UnsafeRow>();" << std::endl;
-    prepare_ss << "initTempUnsafeRow(" << unsafe_row_name << ".get(), "
-               << right_key_project_codegen_.size() << ");" << std::endl;
+               << " = std::make_shared<UnsafeRow>(" << right_key_project_codegen_.size()
+               << ");" << std::endl;
     for (auto expr : right_key_project_codegen_) {
       std::shared_ptr<ExpressionCodegenVisitor> project_node_visitor;
       RETURN_NOT_OK(MakeExpressionCodegenVisitor(expr->root(), input, {right_field_list_},
@@ -721,8 +720,6 @@ class ConditionedProbeKernel::Impl {
     codes_ss << index_name << " = " << hash_relation_name << "->Get(key_"
              << hash_relation_id_ << ", unsafe_row_" << hash_relation_id_ << ");"
              << std::endl;
-    codes_ss << "releaseTempUnsafeRow(unsafe_row_" << hash_relation_id_ << ".get());"
-             << std::endl;
     codes_ss << "if (" << index_name << " == -1) { continue; }" << std::endl;
     codes_ss << "for (auto tmp : " << hash_relation_name << "->GetItemListByIndex("
              << index_name << ")) {" << std::endl;
@@ -752,8 +749,6 @@ class ConditionedProbeKernel::Impl {
     codes_ss << "int32_t " << index_name << ";" << std::endl;
     codes_ss << index_name << " = " << hash_relation_name << "->Get(key_"
              << hash_relation_id_ << ", unsafe_row_" << hash_relation_id_ << ");"
-             << std::endl;
-    codes_ss << "releaseTempUnsafeRow(unsafe_row_" << hash_relation_id_ << ".get());"
              << std::endl;
     codes_ss << "std::vector<ArrayItemIndex> " << matched_index_list_name << ";"
              << std::endl;
@@ -789,8 +784,6 @@ class ConditionedProbeKernel::Impl {
     codes_ss << "int32_t " << index_name << ";" << std::endl;
     codes_ss << index_name << " = " << hash_relation_name << "->Get(key_"
              << hash_relation_id_ << ", unsafe_row_" << hash_relation_id_ << ");"
-             << std::endl;
-    codes_ss << "releaseTempUnsafeRow(unsafe_row_" << hash_relation_id_ << ".get());"
              << std::endl;
     codes_ss << "std::vector<ArrayItemIndex> " << matched_index_list_name << ";"
              << std::endl;
@@ -832,8 +825,6 @@ class ConditionedProbeKernel::Impl {
     codes_ss << "int32_t " << index_name << ";" << std::endl;
     codes_ss << index_name << " = " << hash_relation_name << "->Get(key_"
              << hash_relation_id_ << ", unsafe_row_" << hash_relation_id_ << ");"
-             << std::endl;
-    codes_ss << "releaseTempUnsafeRow(unsafe_row_" << hash_relation_id_ << ".get());"
              << std::endl;
     codes_ss << "std::vector<ArrayItemIndex> " << matched_index_list_name << ";"
              << std::endl;
@@ -881,8 +872,6 @@ class ConditionedProbeKernel::Impl {
     codes_ss << "int32_t " << index_name << ";" << std::endl;
     codes_ss << index_name << " = " << hash_relation_name << "->Get(key_"
              << hash_relation_id_ << ", unsafe_row_" << hash_relation_id_ << ");"
-             << std::endl;
-    codes_ss << "releaseTempUnsafeRow(unsafe_row_" << hash_relation_id_ << ".get());"
              << std::endl;
     codes_ss << "bool " << exist_name << " = false;" << std::endl;
     codes_ss << "bool " << exist_validity << " = true;" << std::endl;
