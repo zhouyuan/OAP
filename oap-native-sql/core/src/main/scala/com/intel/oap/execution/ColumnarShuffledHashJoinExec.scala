@@ -121,7 +121,7 @@ case class ColumnarShuffledHashJoinExec(
 
   override def supportColumnarCodegen: Boolean = true
 
-  def getKernelFunction: TreeNode = {
+  def getKernelFunction(_type: Int = 0): TreeNode = {
 
     val buildInputAttributes = buildPlan.output.toList
     val streamInputAttributes = streamedPlan.output.toList
@@ -140,7 +140,8 @@ case class ColumnarShuffledHashJoinExec(
       output_skip_alias,
       joinType,
       buildSide,
-      condition)
+      condition,
+      _type)
   }
 
   override def doCodeGen: ColumnarCodegenContext = {
@@ -155,7 +156,7 @@ case class ColumnarShuffledHashJoinExec(
       (
         TreeBuilder.makeFunction(
           s"child",
-          Lists.newArrayList(getKernelFunction, childCtx.root),
+          Lists.newArrayList(getKernelFunction(1), childCtx.root),
           new ArrowType.Int(32, true)),
         childCtx.inputSchema)
     } else {
@@ -163,7 +164,7 @@ case class ColumnarShuffledHashJoinExec(
         TreeBuilder
           .makeFunction(
             s"child",
-            Lists.newArrayList(getKernelFunction),
+            Lists.newArrayList(getKernelFunction(1)),
             new ArrowType.Int(32, true)),
         ConverterUtils.toArrowSchema(streamedPlan.output))
     }
@@ -213,7 +214,7 @@ case class ColumnarShuffledHashJoinExec(
 
       val native_function = TreeBuilder.makeFunction(
         s"standalone",
-        Lists.newArrayList(getKernelFunction),
+        Lists.newArrayList(getKernelFunction(0)),
         new ArrowType.Int(32, true))
       val probe_expr =
         TreeBuilder

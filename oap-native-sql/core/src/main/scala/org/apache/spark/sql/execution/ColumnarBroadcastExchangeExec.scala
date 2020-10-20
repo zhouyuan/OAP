@@ -1,5 +1,10 @@
 package org.apache.spark.sql.execution
 
+import com.google.common.collect.Lists;
+import com.intel.oap.expression._
+import com.intel.oap.vectorized.{ArrowWritableColumnVector, ExpressionEvaluator}
+import io.netty.buffer.{ByteBuf, ByteBufAllocator, ByteBufOutputStream}
+import java.io.{OutputStream, ObjectOutputStream}
 import java.nio.ByteBuffer
 import scala.concurrent.duration.NANOSECONDS
 import scala.concurrent.{ExecutionContext, Promise}
@@ -10,15 +15,21 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.launcher.SparkLauncher
 import org.apache.spark.sql.catalyst.plans.physical.BroadcastMode
 import org.apache.spark.sql.catalyst.expressions.{Attribute, Expression, SortOrder}
+import org.apache.spark.sql.catalyst.expressions.BoundReference
 import org.apache.spark.sql.execution.{SparkPlan, SQLExecution}
+import org.apache.spark.sql.execution.joins.HashedRelationBroadcastMode
 import org.apache.spark.sql.execution.metric.SQLMetrics
 import org.apache.spark.sql.internal.{SQLConf, StaticSQLConf}
 import org.apache.spark.sql.vectorized.ColumnarBatch
 import org.apache.spark.util.{SparkFatalException, ThreadUtils}
 
+import org.apache.arrow.vector.ipc.message.ArrowRecordBatch
+import org.apache.arrow.vector.types.pojo.ArrowType
+import org.apache.arrow.vector.types.pojo.Field
+import org.apache.arrow.vector.types.pojo.Schema
+import org.apache.arrow.gandiva.expression._
+import org.apache.arrow.gandiva.evaluator._
 import org.apache.spark.sql.execution.exchange.BroadcastExchangeExec
-import com.intel.oap.expression.ConverterUtils
-import com.intel.oap.vectorized.ArrowWritableColumnVector
 
 class ColumnarBroadcastExchangeExec(mode: BroadcastMode, child: SparkPlan)
     extends BroadcastExchangeExec(mode, child) {
@@ -53,22 +64,31 @@ class ColumnarBroadcastExchangeExec(mode: BroadcastMode, child: SparkPlan)
           s"broadcast exchange (runId $runId)",
           interruptOnCancel = true)
         val beforeCollect = System.nanoTime()
-        // Use executeCollect/executeCollectIterator to avoid conversion to Scala types
+        val buildKeyExprs: Seq[Expression] = mode match {
+          case hashRelationMode: HashedRelationBroadcastMode =>
+            hashRelationMode.key
+          case _ =>
+            throw new UnsupportedOperationException(
+              s"ColumnarBroadcastExchange only support HashRelationMode")
+        }
+
+        ///////////////////// Collect Raw RecordBatches from all executors /////////////////
         val countsAndBytes = child
           .executeColumnar()
           .mapPartitions { iter =>
             var _numRows: Long = 0
             val _input = new ArrayBuffer[ColumnarBatch]()
+
             while (iter.hasNext) {
               val batch = iter.next
               (0 until batch.numCols).foreach(i =>
                 batch.column(i).asInstanceOf[ArrowWritableColumnVector].retain())
               _numRows += batch.numRows
               _input += batch
+
             }
-            val beforeBuild = System.nanoTime()
             val bytes = ConverterUtils.convertToNetty(_input.toArray)
-            longMetric("buildTime") += NANOSECONDS.toMillis(System.nanoTime() - beforeBuild)
+
             _input.toArray.foreach(batch => {
               (0 until batch.numCols).foreach(i =>
                 batch.column(i).asInstanceOf[ArrowWritableColumnVector].close())
@@ -76,10 +96,58 @@ class ColumnarBroadcastExchangeExec(mode: BroadcastMode, child: SparkPlan)
             Iterator((_numRows, bytes))
           }
           .collect
-        val numRows = countsAndBytes.map(_._1).sum
+        ///////////////////////////////////////////////////////////////////////////
         val input = countsAndBytes.map(_._2)
-        val dataSize = input.map(_.size).sum
-        val relation: Any = input
+
+        ///////////// After collect data to driver side, build hashmap here /////////////
+        val beforeBuild = System.nanoTime()
+        val _input = new ArrayBuffer[ColumnarBatch]()
+        val hash_relation_schema = ConverterUtils.toArrowSchema(output)
+        val hash_relation_function =
+          ColumnarConditionedProbeJoin.prepareHashBuildFunction(buildKeyExprs, output, 1, true)
+        val hash_relation_expr =
+          TreeBuilder.makeExpression(
+            hash_relation_function,
+            Field.nullable("result", new ArrowType.Int(32, true)))
+        val hashRelationKernel = new ExpressionEvaluator()
+        hashRelationKernel.build(
+          hash_relation_schema,
+          Lists.newArrayList(hash_relation_expr),
+          true)
+        val iter = ConverterUtils.convertFromNetty(output, input)
+        var numRows: Long = 0
+        while (iter.hasNext) {
+          val batch = iter.next
+          if (batch.numRows > 0) {
+            (0 until batch.numCols).foreach(i =>
+              batch.column(i).asInstanceOf[ArrowWritableColumnVector].retain())
+            _input += batch
+            numRows += batch.numRows
+            val dep_rb = ConverterUtils.createArrowRecordBatch(batch)
+            hashRelationKernel.evaluate(dep_rb)
+            ConverterUtils.releaseArrowRecordBatch(dep_rb)
+          }
+        }
+        val hashRelationResultIterator = hashRelationKernel.finishByIterator()
+        val innerBuf = ByteBufAllocator.DEFAULT.buffer()
+        val outStream = new ObjectOutputStream(new ByteBufOutputStream(innerBuf))
+        val hashRelationObj = hashRelationResultIterator.nextHashRelationObject()
+        outStream.writeObject(hashRelationObj)
+        ConverterUtils.convertToNetty(_input.toArray, outStream)
+        outStream.close()
+        val bytes = new Array[Byte](innerBuf.readableBytes);
+        innerBuf.getBytes(innerBuf.readerIndex, bytes);
+        innerBuf.release()
+        hashRelationKernel.close
+        hashRelationResultIterator.close
+        longMetric("buildTime") += NANOSECONDS.toMillis(System.nanoTime() - beforeBuild)
+        _input.toArray.foreach(batch => {
+          (0 until batch.numCols).foreach(i =>
+            batch.column(i).asInstanceOf[ArrowWritableColumnVector].close())
+        })
+        /////////////////////////////////////////////////////////////////////////////
+        val relation: Any = bytes
+        val dataSize = bytes.length
 
         if (numRows >= BroadcastExchangeExec.MAX_BROADCAST_TABLE_ROWS) {
           throw new SparkException(
