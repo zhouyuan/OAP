@@ -471,14 +471,9 @@ class ColumnarAggregation(
       var eval_elapse: Long = 0
 
       override def hasNext: Boolean = {
-        if (nextCalled == false && resultColumnarBatch != null) {
-          return true
-        }
         if (!nextBatch) {
           return false
         }
-
-        nextCalled = false
         if (data_loaded == false) {
           while (cbIterator.hasNext) {
             cb = cbIterator.next()
@@ -501,29 +496,30 @@ class ColumnarAggregation(
           data_loaded = true
           aggrTime += NANOSECONDS.toMillis(eval_elapse)
         }
-        val beforeResultFetch = System.nanoTime()
-        resultColumnarBatch = getAggregationResult(result_iterator)
-        aggrTime += NANOSECONDS.toMillis(System.nanoTime() - beforeResultFetch)
-        if (resultColumnarBatch.numRows == 0) {
-          resultColumnarBatch.close()
-          logInfo(s"Aggregation completed, total output ${numOutputRows} rows, ${numOutputBatches} batches")
-          return false
+
+        if (groupingFieldList.size > 0) {
+          return result_iterator.hasNext()
+        } else {
+          if (resultColumnarBatch != null && resultColumnarBatch.numRows == 0) {
+            resultColumnarBatch.close()
+            logInfo(s"Aggregation completed, total output ${numOutputRows} rows, ${numOutputBatches} batches")
+            return false
+          } else {
+            if (result_iterator == null) {
+              nextBatch = false
+            }
+            return true
+          }
         }
-        numOutputBatches += 1
-        numOutputRows += resultColumnarBatch.numRows
-        if (result_iterator == null) {
-          nextBatch = false
-        }
-        true
       }
 
       override def next(): ColumnarBatch = {
-        if (resultColumnarBatch == null) {
-          throw new UnsupportedOperationException(s"next() called, while there is no next")
-        }
-        nextCalled = true
-        val numCols = resultColumnarBatch.numCols
-        //logInfo(s"result has ${resultColumnarBatch.numRows}, first row is ${(0 until numCols).map(resultColumnarBatch.column(_).getUTF8String(0))}")
+        val beforeResultFetch = System.nanoTime()
+        resultColumnarBatch = getAggregationResult(result_iterator)
+        aggrTime += NANOSECONDS.toMillis(System.nanoTime() - beforeResultFetch)
+        numOutputBatches += 1
+        numOutputRows += resultColumnarBatch.numRows
+
         resultColumnarBatch
       }
     }// iterator
