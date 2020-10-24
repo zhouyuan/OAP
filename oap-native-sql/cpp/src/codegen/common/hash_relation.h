@@ -145,6 +145,7 @@ class HashRelation {
     }
 
     num_arrays_++;
+    // DumpHashMap();
     return arrow::Status::OK();
   }
 
@@ -160,6 +161,13 @@ class HashRelation {
       arrayid_list_.push_back(*((ArrayItemIndex*)index));
     }
     return 0;
+  }
+
+  int IfExists(int32_t v, std::shared_ptr<UnsafeRow> payload) {
+    if (hash_table_ == nullptr) {
+      throw std::runtime_error("HashRelation Get failed, hash_table is null.");
+    }
+    return safeLookup(hash_table_, payload, v);
   }
 
   int GetNull() { return null_index_set_ ? 0 : HASH_NEW_KEY; }
@@ -202,7 +210,7 @@ class HashRelation {
     hash_table_->cursor = sizes[2];
     hash_table_->keyArray = (int*)addrs[1];
     hash_table_->bytesMap = (char*)addrs[2];
-    unsafe_set == true;
+    unsafe_set = true;
     // dump(hash_table_);
     return arrow::Status::OK();
   }
