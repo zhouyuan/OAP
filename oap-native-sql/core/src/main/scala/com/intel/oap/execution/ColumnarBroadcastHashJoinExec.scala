@@ -81,9 +81,8 @@ case class ColumnarBroadcastHashJoinExec(
     "numOutputBatches" -> SQLMetrics.createMetric(sparkContext, "number of output batches"),
     "processTime" -> SQLMetrics.createTimingMetric(sparkContext, "totaltime_broadcastHasedJoin"),
     "buildTime" -> SQLMetrics.createTimingMetric(sparkContext, "time to build hash map"),
-    "fetchTime" -> SQLMetrics
-      .createTimingMetric(sparkContext, "time to fetch broadcasted hash map"),
-    "joinTime" -> SQLMetrics.createTimingMetric(sparkContext, "join time"))
+    "joinTime" -> SQLMetrics.createTimingMetric(sparkContext, "join time"),
+    "fetchTime" -> SQLMetrics.createTimingMetric(sparkContext, "broadcast result fetch time"))
 
   val (buildKeyExprs, streamedKeyExprs) = buildSide match {
     case BuildLeft =>
@@ -185,20 +184,19 @@ case class ColumnarBroadcastHashJoinExec(
 
     var build_elapse: Long = 0
     var eval_elapse: Long = 0
-    val buildInputByteBuf = buildPlan.executeBroadcast[Array[Byte]]()
+    val buildInputByteBuf = buildPlan.executeBroadcast[ColumnarHashedRelation]()
+
     streamedPlan.executeColumnar().mapPartitions { iter =>
       val hashRelationKernel = new ExpressionEvaluator()
       val hashRelationBatchHolder: ListBuffer[ColumnarBatch] = ListBuffer()
       // received broadcast value contain a hashmap and raw recordBatch
       val beforeFetch = System.nanoTime()
-      val broadcastInputStream =
-        new ObjectInputStream(new ByteArrayInputStream(buildInputByteBuf.value))
-      fetchTime += (System.nanoTime() - beforeFetch)
+      val relation = buildInputByteBuf.value.asReadOnlyCopy
+      fetchTime += ((System.nanoTime() - beforeFetch) / 1000000)
       val beforeEval = System.nanoTime()
-      val hashRelationObject = broadcastInputStream.readObject().asInstanceOf[SerializableObject]
+      val hashRelationObject = relation.hashRelationObj
       val depIter =
-        new CloseableColumnBatchIterator(
-          ConverterUtils.convertFromNetty(buildPlan.output, broadcastInputStream))
+        new CloseableColumnBatchIterator(relation.getColumnarBatchAsIter)
       val hash_relation_function =
         ColumnarConditionedProbeJoin.prepareHashBuildFunction(buildKeyExprs, buildPlan.output, 2)
       val hash_relation_schema = ConverterUtils.toArrowSchema(buildPlan.output)
@@ -252,7 +250,6 @@ case class ColumnarBroadcastHashJoinExec(
         hashRelationBatchHolder.foreach(_.close)
         hashRelationKernel.close
         hashRelationResultIterator.close
-        //hashRelationObject.releaseDirectMemory
         nativeKernel.close
         nativeIterator.close
       }
@@ -384,7 +381,7 @@ case class ColumnarBroadcastHashJoinExec(
 
     val signature = getCodeGenSignature
     val listJars = uploadAndListJars(signature)
-    val buildInputByteBuf = buildPlan.executeBroadcast[Array[Byte]]()
+    val buildInputByteBuf = buildPlan.executeBroadcast[ColumnarHashedRelation]()
     val hashRelationBatchHolder: ListBuffer[ColumnarBatch] = ListBuffer()
 
     streamedPlan.executeColumnar().mapPartitions { streamIter =>
@@ -410,15 +407,12 @@ case class ColumnarBroadcastHashJoinExec(
 
       // received broadcast value contain a hashmap and raw recordBatch
       val beforeFetch = System.nanoTime()
-      val broadcastInputStream =
-        new ObjectInputStream(new ByteArrayInputStream(buildInputByteBuf.value))
-      fetchTime += (System.nanoTime() - beforeFetch)
+      val relation = buildInputByteBuf.value.asReadOnlyCopy
+      fetchTime += ((System.nanoTime() - beforeFetch) / 1000000)
       val beforeEval = System.nanoTime()
-      val hashRelationObject =
-        broadcastInputStream.readObject().asInstanceOf[SerializableObject]
+      val hashRelationObject = relation.hashRelationObj
       val depIter =
-        new CloseableColumnBatchIterator(
-          ConverterUtils.convertFromNetty(buildPlan.output, broadcastInputStream))
+        new CloseableColumnBatchIterator(relation.getColumnarBatchAsIter)
       val ctx = dependentPlanCtx
       val hash_relation_expression = TreeBuilder
         .makeExpression(ctx.root, Field.nullable("result", new ArrowType.Int(32, true)))
@@ -426,8 +420,6 @@ case class ColumnarBroadcastHashJoinExec(
       hashRelationKernel
         .build(ctx.inputSchema, Lists.newArrayList(hash_relation_expression), true)
       val hashRelationResultIterator = hashRelationKernel.finishByIterator()
-      // we need to set hashRelationObject to hashRelationResultIterator
-      hashRelationResultIterator.setHashRelationObject(hashRelationObject)
       // we need to set original recordBatch to hashRelationKernel
       while (depIter.hasNext) {
         val dep_cb = depIter.next()
@@ -440,6 +432,8 @@ case class ColumnarBroadcastHashJoinExec(
           ConverterUtils.releaseArrowRecordBatch(dep_rb)
         }
       }
+      // we need to set hashRelationObject to hashRelationResultIterator
+      hashRelationResultIterator.setHashRelationObject(hashRelationObject)
       val nativeIterator = nativeKernel.finishByIterator()
       nativeIterator.setDependencies(Array(hashRelationResultIterator))
       build_elapse += (System.nanoTime() - beforeEval)
@@ -453,7 +447,6 @@ case class ColumnarBroadcastHashJoinExec(
         hashRelationBatchHolder.foreach(_.close)
         hashRelationKernel.close
         hashRelationResultIterator.close
-        //hashRelationObject.releaseDirectMemory
         nativeKernel.close
         nativeIterator.close
       }

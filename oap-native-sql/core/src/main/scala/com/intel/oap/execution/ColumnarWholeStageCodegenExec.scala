@@ -78,7 +78,6 @@ case class ColumnarWholeStageCodegenExec(child: SparkPlan)(val codegenStageId: I
     "numOutputRows" -> SQLMetrics.createMetric(sparkContext, "number of output rows"),
     "totalTime" -> SQLMetrics.createTimingMetric(sparkContext, "totaltime_wholestagecodegen"),
     "buildTime" -> SQLMetrics.createTimingMetric(sparkContext, "time to build dependencies"),
-    "fetchTime" -> SQLMetrics.createTimingMetric(sparkContext, "time to fetch broadcast content"),
     "pipelineTime" -> SQLMetrics.createTimingMetric(sparkContext, "duration"))
 
   override def output: Seq[Attribute] = child.output
@@ -191,8 +190,6 @@ case class ColumnarWholeStageCodegenExec(child: SparkPlan)(val codegenStageId: I
     val numOutputRows = child.longMetric("numOutputRows")
     val numOutputBatches = child.longMetric("numOutputBatches")
     val totalTime = child.longMetric("processTime")
-    val buildTime = child.longMetric("buildTime")
-    val fetchTime = longMetric("fetchTime")
     val pipelineTime = longMetric("pipelineTime")
 
     var build_elapse: Long = 0
@@ -210,21 +207,20 @@ case class ColumnarWholeStageCodegenExec(child: SparkPlan)(val codegenStageId: I
 
       curRDD = curHashPlan match {
         case p: ColumnarBroadcastHashJoinExec =>
+          val fetchTime = p.longMetric("fetchTime")
+          val buildTime = p.longMetric("buildTime")
           val buildPlan = p.getBuildPlan
-          val buildInputByteBuf = buildPlan.executeBroadcast[Array[Byte]]()
+          val buildInputByteBuf = buildPlan.executeBroadcast[ColumnarHashedRelation]()
           curRDD.mapPartitions { iter =>
             // received broadcast value contain a hashmap and raw recordBatch
             val beforeFetch = System.nanoTime()
-            val broadcastInputStream =
-              new ObjectInputStream(new ByteArrayInputStream(buildInputByteBuf.value))
-            fetchTime += (System.nanoTime() - beforeFetch)
+            val relation = buildInputByteBuf.value.asReadOnlyCopy
+            fetchTime += ((System.nanoTime() - beforeFetch) / 1000000)
             val beforeEval = System.nanoTime()
-            val hashRelationObject =
-              broadcastInputStream.readObject().asInstanceOf[SerializableObject]
+            val hashRelationObject = relation.hashRelationObj
             serializableObjectHolder += hashRelationObject
             val depIter =
-              new CloseableColumnBatchIterator(
-                ConverterUtils.convertFromNetty(buildPlan.output, broadcastInputStream))
+              new CloseableColumnBatchIterator(relation.getColumnarBatchAsIter)
             val ctx = curHashPlan.dependentPlanCtx
             val expression =
               TreeBuilder.makeExpression(
@@ -250,10 +246,12 @@ case class ColumnarWholeStageCodegenExec(child: SparkPlan)(val codegenStageId: I
             // we need to set hashRelationObject to hashRelationResultIterator
             hashRelationResultIterator.setHashRelationObject(hashRelationObject)
             build_elapse += (System.nanoTime() - beforeEval)
+            buildTime += ((System.nanoTime() - beforeEval) / 1000000)
             dependentKernels += hashRelationKernel
             iter
           }
         case p: ColumnarShuffledHashJoinExec =>
+          val buildTime = p.longMetric("buildTime")
           val buildPlan = p.getBuildPlan
           curRDD.zipPartitions(buildPlan.executeColumnar()) { (iter, depIter) =>
             val ctx = curHashPlan.dependentPlanCtx
@@ -264,6 +262,7 @@ case class ColumnarWholeStageCodegenExec(child: SparkPlan)(val codegenStageId: I
             val hashRelationKernel = new ExpressionEvaluator()
             hashRelationKernel
               .build(ctx.inputSchema, Lists.newArrayList(expression), true)
+            var build_elapse_internal: Long = 0
             while (depIter.hasNext) {
               val dep_cb = depIter.next()
               (0 until dep_cb.numCols).toList.foreach(i =>
@@ -274,7 +273,9 @@ case class ColumnarWholeStageCodegenExec(child: SparkPlan)(val codegenStageId: I
               hashRelationKernel.evaluate(dep_rb)
               ConverterUtils.releaseArrowRecordBatch(dep_rb)
               build_elapse += System.nanoTime() - beforeEval
+              build_elapse_internal += System.nanoTime() - beforeEval
             }
+            buildTime += (build_elapse_internal / 1000000)
             dependentKernels += hashRelationKernel
             dependentKernelIterators += hashRelationKernel.finishByIterator()
             iter
@@ -315,12 +316,10 @@ case class ColumnarWholeStageCodegenExec(child: SparkPlan)(val codegenStageId: I
       def close = {
         closed = true
         totalTime += (eval_elapse / 1000000)
-        buildTime += (build_elapse / 1000000)
         pipelineTime += (eval_elapse + build_elapse) / 1000000
         hashRelationBatchHolder.foreach(_.close)
         dependentKernels.foreach(_.close)
         dependentKernelIterators.foreach(_.close)
-        //serializableObjectHolder.foreach(_.releaseDirectMemory)
         nativeKernel.close
         nativeIterator.close
       }

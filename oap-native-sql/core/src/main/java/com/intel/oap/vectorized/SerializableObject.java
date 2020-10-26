@@ -17,24 +17,26 @@
 
 package com.intel.oap.vectorized;
 
+import java.io.*;
+import com.esotericsoftware.kryo.Kryo;
+import com.esotericsoftware.kryo.KryoSerializable;
+import com.esotericsoftware.kryo.io.Input;
+import com.esotericsoftware.kryo.io.Output;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.ByteBufInputStream;
 import io.netty.buffer.ByteBufOutputStream;
 import io.netty.buffer.Unpooled;
 import io.netty.buffer.UnpooledByteBufAllocator;
-import java.io.InputStream;
-import java.io.IOException;
-import java.io.OutputStream;
-import java.io.Serializable;
 
 /** ArrowBufBuilder. */
-public class SerializableObject implements Serializable {
+public class SerializableObject implements Externalizable, KryoSerializable {
   public int total_size;
   public int[] size;
-  public byte[] data;
-  private transient ByteBuf[] directAddrs;
-  private transient ByteBufAllocator allocator;
+  private ByteBuf[] directAddrs;
+  private ByteBufAllocator allocator;
+
+  public SerializableObject() {}
 
   /**
    * Create an instance for NativeSerializableObject.
@@ -45,18 +47,10 @@ public class SerializableObject implements Serializable {
   public SerializableObject(long[] memoryAddress, int[] size) throws IOException {
     this.total_size = 0;
     this.size = size;
-    ByteBuf[] bufList = new ByteBuf[size.length];
+    directAddrs = new ByteBuf[size.length];
     for (int i = 0; i < size.length; i++) {
       this.total_size += size[i];
-      bufList[i] = Unpooled.wrappedBuffer(memoryAddress[i], size[i], false);
-    }
-
-    this.data = new byte[this.total_size];
-    int off = 0;
-    for (int i = 0; i < size.length; i++) {
-      ByteBufInputStream in = new ByteBufInputStream(bufList[i]);
-      in.read(data, off, size[i]);
-      off += size[i];
+      directAddrs[i] = Unpooled.wrappedBuffer(memoryAddress[i], size[i], false);
     }
   }
 
@@ -66,22 +60,87 @@ public class SerializableObject implements Serializable {
    * @param memoryAddress native ArrowBuf data addr.
    * @param size ArrowBuf size.
    */
-  public SerializableObject(NativeSerializableObject obj) throws IOException {
+  public SerializableObject(NativeSerializableObject obj)
+      throws IOException, ClassNotFoundException {
     this(obj.memoryAddress, obj.size);
+  }
+
+  @Override
+  public void readExternal(ObjectInput in) throws IOException, ClassNotFoundException {
+    this.total_size = in.readInt();
+    int size_len = in.readInt();
+    this.size = (int[]) in.readObject();
+    allocator = UnpooledByteBufAllocator.DEFAULT;
+    directAddrs = new ByteBuf[size_len];
+    for (int i = 0; i < size.length; i++) {
+      byte[] data = new byte[size[i]];
+      directAddrs[i] = allocator.directBuffer(size[i], size[i]);
+      OutputStream out = new ByteBufOutputStream(directAddrs[i]);
+      data = (byte[]) in.readObject();
+      out.write(data);
+      out.close();
+    }
+  }
+
+  @Override
+  public void writeExternal(ObjectOutput out) throws IOException {
+    out.writeInt(this.total_size);
+    out.writeInt(this.size.length);
+    out.writeObject(this.size);
+    for (int i = 0; i < size.length; i++) {
+      byte[] data = new byte[size[i]];
+      ByteBufInputStream in = new ByteBufInputStream(directAddrs[i]);
+      try {
+        in.read(data);
+      } catch (IOException e) {
+      }
+      out.writeObject(data);
+    }
+  }
+
+  @Override
+  public void read(Kryo kryo, Input in) {
+    this.total_size = in.readInt();
+    int size_len = in.readInt();
+    this.size = in.readInts(size_len);
+    allocator = UnpooledByteBufAllocator.DEFAULT;
+    directAddrs = new ByteBuf[size_len];
+    for (int i = 0; i < size.length; i++) {
+      byte[] data = new byte[size[i]];
+      directAddrs[i] = allocator.directBuffer(size[i], size[i]);
+      OutputStream out = new ByteBufOutputStream(directAddrs[i]);
+      try {
+        in.readBytes(data);
+        out.write(data);
+        out.close();
+      } catch (IOException e) {
+      }
+    }
+  }
+
+  @Override
+  public void write(Kryo kryo, Output out) {
+    out.writeInt(this.total_size);
+    out.writeInt(this.size.length);
+    out.writeInts(this.size);
+    for (int i = 0; i < size.length; i++) {
+      byte[] data = new byte[size[i]];
+      ByteBufInputStream in = new ByteBufInputStream(directAddrs[i]);
+      try {
+        in.read(data);
+      } catch (IOException e) {
+      }
+      out.writeBytes(data);
+    }
+  }
+
+  public void close() {
+    releaseDirectMemory();
   }
 
   public long[] getDirectMemoryAddrs() throws IOException {
     if (directAddrs == null) {
-      allocator = UnpooledByteBufAllocator.DEFAULT;
-      directAddrs = new ByteBuf[size.length];
-      int pos = 0;
-      for (int i = 0; i < size.length; i++) {
-        directAddrs[i] = allocator.directBuffer(size[i], size[i]);
-        OutputStream out = new ByteBufOutputStream(directAddrs[i]);
-        out.write(data, pos, size[i]);
-        pos += size[i];
-        out.close();
-      }
+      throw new IOException("DirectAddrs is null");
     }
     long[] addrs = new long[size.length];
     for (int i = 0; i < size.length; i++) {

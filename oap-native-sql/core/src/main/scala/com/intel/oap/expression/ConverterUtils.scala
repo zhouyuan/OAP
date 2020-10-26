@@ -161,6 +161,9 @@ object ConverterUtils extends Logging {
         }
       override def next(): ColumnarBatch = {
         if (input.available == 0) {
+          if (attributes == null) {
+            return null
+          }
           val resultStructType = StructType(
             attributes.map(a => StructField(a.name, a.dataType, a.nullable, a.metadata)))
           val resultColumnVectors =

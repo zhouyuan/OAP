@@ -75,7 +75,8 @@ public class BatchIterator {
     return resRecordBatchBuilderImpl.build();
   }
 
-  public SerializableObject nextHashRelationObject() throws IOException {
+  public SerializableObject nextHashRelationObject()
+      throws IOException, ClassNotFoundException {
     if (nativeHandler == 0) {
       return null;
     }
