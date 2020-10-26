@@ -167,7 +167,11 @@ class HashRelation {
     if (hash_table_ == nullptr) {
       throw std::runtime_error("HashRelation Get failed, hash_table is null.");
     }
-    return safeLookup(hash_table_, payload, v);
+    int step;
+    auto res = safeLookup(hash_table_, payload, v, &step);
+    total_get_++;
+    total_steps_ += step;
+    return res;
   }
 
   int GetNull() { return null_index_set_ ? 0 : HASH_NEW_KEY; }
@@ -221,6 +225,8 @@ class HashRelation {
   }
 
   virtual std::vector<ArrayItemIndex> GetItemListByIndex(int i) { return arrayid_list_; }
+  uint64_t total_steps_ = 0;
+  uint64_t total_get_ = 0;
 
  protected:
   bool unsafe_set = false;

@@ -239,7 +239,7 @@ static inline bool growAndRehashKeyArray(unsafeHashMap* hashMap) {
  *   -1 if not exists
  */
 static inline int safeLookup(unsafeHashMap* hashMap, std::shared_ptr<UnsafeRow> keyRow,
-                             int hashVal) {
+                             int hashVal, int* _step = nullptr) {
   assert(hashMap->keyArray != NULL);
   int mask = hashMap->arrayCapacity - 1;
   int pos = hashVal & mask;
@@ -247,12 +247,15 @@ static inline int safeLookup(unsafeHashMap* hashMap, std::shared_ptr<UnsafeRow> 
   int keyLength = keyRow->sizeInBytes();
   char* base = hashMap->bytesMap;
 
+  __builtin_prefetch(hashMap->keyArray, 0, 3);
+  __builtin_prefetch(hashMap->bytesMap, 0, 3);
   while (true) {
     int KeyAddressOffset = hashMap->keyArray[pos * 2];
     int keyHashCode = hashMap->keyArray[pos * 2 + 1];
 
     if (KeyAddressOffset < 0) {
       // This is a new key.
+      if (_step != nullptr) *_step = step;
       return HASH_NEW_KEY;
     } else {
       if ((int)keyHashCode == hashVal) {
@@ -260,6 +263,7 @@ static inline int safeLookup(unsafeHashMap* hashMap, std::shared_ptr<UnsafeRow> 
         char* record = base + KeyAddressOffset;
         if ((getKeyLength(record) == keyLength) &&
             (memcmp(keyRow->data, getKeyFromBytesMap(record), keyLength) == 0)) {
+          if (_step != nullptr) *_step = step;
           return 0;
         }
       }
@@ -288,6 +292,7 @@ static inline int safeLookup(unsafeHashMap* hashMap, std::shared_ptr<UnsafeRow> 
   char* base = hashMap->bytesMap;
 
   while (true) {
+    __builtin_prefetch(&hashMap->keyArray[pos * 2], 0, 3);
     int KeyAddressOffset = hashMap->keyArray[pos * 2];
     int keyHashCode = hashMap->keyArray[pos * 2 + 1];
 
@@ -298,6 +303,7 @@ static inline int safeLookup(unsafeHashMap* hashMap, std::shared_ptr<UnsafeRow> 
       if ((int)keyHashCode == hashVal) {
         // Full hash code matches.  Let's compare the keys for equality.
         char* record = base + KeyAddressOffset;
+        __builtin_prefetch(record, 0, 3);
         if ((getKeyLength(record) == keyLength) &&
             (memcmp(keyRow->data, getKeyFromBytesMap(record), keyLength) == 0)) {
           // there may be more than one record

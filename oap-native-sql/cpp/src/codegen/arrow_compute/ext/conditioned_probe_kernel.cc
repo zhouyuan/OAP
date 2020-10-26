@@ -369,6 +369,11 @@ class ConditionedProbeKernel::Impl {
       }
     }
 
+    ~ConditionedProbeResultIterator() {
+      std::cout << "ConditionedProbeResultIterator total took "
+                << TIME_NANO_TO_STRING(total_elapse_) << std::endl;
+    }
+
 #define PROCESS_SUPPORTED_TYPES(PROCESS) \
   PROCESS(arrow::UInt8Type)              \
   PROCESS(arrow::Int8Type)               \
@@ -515,6 +520,7 @@ class ConditionedProbeKernel::Impl {
         const std::vector<std::shared_ptr<arrow::Array>>& in,
         std::shared_ptr<arrow::RecordBatch>* out,
         const std::shared_ptr<arrow::Array>& selection = nullptr) override {
+      auto start = std::chrono::steady_clock::now();
       // Get key array, which should be typed
       std::shared_ptr<arrow::Array> key_array;
       arrow::ArrayVector projected_keys_outputs;
@@ -571,10 +577,15 @@ class ConditionedProbeKernel::Impl {
         RETURN_NOT_OK(appender->Reset());
       }
       *out = arrow::RecordBatch::Make(result_schema_, out_length, out_arr_list);
+      auto end = std::chrono::steady_clock::now();
+      total_elapse_ +=
+          std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
       return arrow::Status::OK();
     }
 
    private:
+    uint64_t probe_elapse_ = 0;
+    uint64_t total_elapse_ = 0;
     class ProbeFunctionBase {
      public:
       virtual uint64_t Evaluate(std::shared_ptr<arrow::Array>) { return 0; }
@@ -703,7 +714,8 @@ class ConditionedProbeKernel::Impl {
           for (auto payload_arr : payloads) {
             payload_arr->Append(i, &unsafe_key_row);
           }
-          int index = hash_relation_->Get(typed_key_array->GetView(i), unsafe_key_row);
+          int index =
+              hash_relation_->IfExists(typed_key_array->GetView(i), unsafe_key_row);
           if (index == -1) {
             for (auto appender : appender_list_) {
               if (appender->GetType() == AppenderBase::left) {
@@ -729,6 +741,17 @@ class ConditionedProbeKernel::Impl {
       UnsafeSemiProbeFunction(std::shared_ptr<HashRelation> hash_relation,
                               std::vector<std::shared_ptr<AppenderBase>> appender_list)
           : hash_relation_(hash_relation), appender_list_(appender_list) {}
+      ~UnsafeSemiProbeFunction() {
+        std::cout << "UnsafeSemiProbeFunction unsafe_key_row build took "
+                  << TIME_NANO_TO_STRING(make_unsafe_row_elapse_) << ", get took "
+                  << TIME_NANO_TO_STRING(get_elapse_) << ", append took "
+                  << TIME_NANO_TO_STRING(append_elapse_) << std::endl;
+        std::cout << "total Get count is " << hash_relation_->total_get_
+                  << " times, and total step count is " << hash_relation_->total_steps_
+                  << " times, so avg step is "
+                  << (hash_relation_->total_steps_ / hash_relation_->total_get_) << "."
+                  << std::endl;
+      }
       uint64_t Evaluate(std::shared_ptr<arrow::Array> key_array,
                         const arrow::ArrayVector& key_payloads) override {
         auto typed_key_array = std::dynamic_pointer_cast<ArrayType>(key_array);
@@ -741,11 +764,21 @@ class ConditionedProbeKernel::Impl {
         }
         uint64_t out_length = 0;
         for (int i = 0; i < key_array->length(); i++) {
+          auto start = std::chrono::steady_clock::now();
           auto unsafe_key_row = std::make_shared<UnsafeRow>(payloads.size());
           for (auto payload_arr : payloads) {
             payload_arr->Append(i, &unsafe_key_row);
           }
-          int index = hash_relation_->Get(typed_key_array->GetView(i), unsafe_key_row);
+          auto make_unsafe_row_end = std::chrono::steady_clock::now();
+          make_unsafe_row_elapse_ += std::chrono::duration_cast<std::chrono::nanoseconds>(
+                                         make_unsafe_row_end - start)
+                                         .count();
+          int index =
+              hash_relation_->IfExists(typed_key_array->GetView(i), unsafe_key_row);
+          auto get_end = std::chrono::steady_clock::now();
+          get_elapse_ += std::chrono::duration_cast<std::chrono::nanoseconds>(
+                             get_end - make_unsafe_row_end)
+                             .count();
           if (index == -1) {
             continue;
           }
@@ -757,6 +790,10 @@ class ConditionedProbeKernel::Impl {
             }
           }
           out_length += 1;
+          auto append_end = std::chrono::steady_clock::now();
+          append_elapse_ +=
+              std::chrono::duration_cast<std::chrono::nanoseconds>(append_end - get_end)
+                  .count();
         }
         return out_length;
       }
@@ -765,6 +802,9 @@ class ConditionedProbeKernel::Impl {
       using ArrayType = arrow::Int32Array;
       std::shared_ptr<HashRelation> hash_relation_;
       std::vector<std::shared_ptr<AppenderBase>> appender_list_;
+      uint64_t make_unsafe_row_elapse_ = 0;
+      uint64_t get_elapse_ = 0;
+      uint64_t append_elapse_ = 0;
     };
 
     class UnsafeExistenceProbeFunction : public ProbeFunctionBase {
@@ -789,7 +829,8 @@ class ConditionedProbeKernel::Impl {
           for (auto payload_arr : payloads) {
             payload_arr->Append(i, &unsafe_key_row);
           }
-          int index = hash_relation_->Get(typed_key_array->GetView(i), unsafe_key_row);
+          int index =
+              hash_relation_->IfExists(typed_key_array->GetView(i), unsafe_key_row);
           bool exists = true;
           if (index == -1) {
             exists = false;
