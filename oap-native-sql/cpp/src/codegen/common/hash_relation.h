@@ -149,6 +149,36 @@ class HashRelation {
     return arrow::Status::OK();
   }
 
+  template <typename KeyArrayType>
+  arrow::Status AppendKeyColumn(std::shared_ptr<arrow::Array> in,
+                                std::shared_ptr<KeyArrayType> original_key) {
+    // This Key should be Hash Key
+    auto typed_array = std::make_shared<ArrayType>(in);
+    for (int i = 0; i < typed_array->length(); i++) {
+      RETURN_NOT_OK(
+          Insert(typed_array->GetView(i), original_key->GetView(i), num_arrays_, i));
+    }
+
+    num_arrays_++;
+    // DumpHashMap();
+    return arrow::Status::OK();
+  }
+
+  template <typename CType>
+  int Get(int32_t v, CType payload) {
+    if (hash_table_ == nullptr) {
+      throw std::runtime_error("HashRelation Get failed, hash_table is null.");
+    }
+    std::vector<char*> res_out;
+    auto res = safeLookup(hash_table_, payload, v, &res_out);
+    if (res == -1) return -1;
+    arrayid_list_.clear();
+    for (auto index : res_out) {
+      arrayid_list_.push_back(*((ArrayItemIndex*)index));
+    }
+    return 0;
+  }
+
   int Get(int32_t v, std::shared_ptr<UnsafeRow> payload) {
     if (hash_table_ == nullptr) {
       throw std::runtime_error("HashRelation Get failed, hash_table is null.");
@@ -161,6 +191,18 @@ class HashRelation {
       arrayid_list_.push_back(*((ArrayItemIndex*)index));
     }
     return 0;
+  }
+
+  template <typename CType>
+  int IfExists(int32_t v, CType payload) {
+    if (hash_table_ == nullptr) {
+      throw std::runtime_error("HashRelation Get failed, hash_table is null.");
+    }
+    int step;
+    auto res = safeLookup(hash_table_, payload, v, &step);
+    total_get_++;
+    total_steps_ += step;
+    return res;
   }
 
   int IfExists(int32_t v, std::shared_ptr<UnsafeRow> payload) {
@@ -243,6 +285,16 @@ class HashRelation {
     assert(hash_table_ != nullptr);
     auto index = ArrayItemIndex(array_id, id);
     if (!append(hash_table_, payload.get(), v, (char*)&index, sizeof(ArrayItemIndex))) {
+      return arrow::Status::CapacityError("Insert to HashMap failed.");
+    }
+    return arrow::Status::OK();
+  }
+
+  template <typename CType>
+  arrow::Status Insert(int32_t v, CType payload, uint32_t array_id, uint32_t id) {
+    assert(hash_table_ != nullptr);
+    auto index = ArrayItemIndex(array_id, id);
+    if (!append(hash_table_, payload, v, (char*)&index, sizeof(ArrayItemIndex))) {
       return arrow::Status::CapacityError("Insert to HashMap failed.");
     }
     return arrow::Status::OK();

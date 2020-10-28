@@ -156,16 +156,53 @@ class HashRelationKernel::Impl {
           key_projector_->Evaluate(*hash_in_batch, ctx_->memory_pool(), &hash_outputs));
       key_array = hash_outputs[0];
 
-      /* Append key array to UnsafeArray for later UnsafeRow projection */
-      std::vector<std::shared_ptr<UnsafeArray>> payloads;
-      int i = 0;
-      for (auto arr : project_outputs) {
-        std::shared_ptr<UnsafeArray> payload;
-        RETURN_NOT_OK(MakeUnsafeArray(arr->type(), i++, arr, &payload));
-        payloads.push_back(payload);
+/* For single field fixed_size key, we simply insert to HashMap without append to unsafe
+ * Row */
+#define PROCESS_SUPPORTED_TYPES(PROCESS) \
+  PROCESS(arrow::BooleanType)            \
+  PROCESS(arrow::UInt8Type)              \
+  PROCESS(arrow::Int8Type)               \
+  PROCESS(arrow::UInt16Type)             \
+  PROCESS(arrow::Int16Type)              \
+  PROCESS(arrow::UInt32Type)             \
+  PROCESS(arrow::Int32Type)              \
+  PROCESS(arrow::UInt64Type)             \
+  PROCESS(arrow::Int64Type)              \
+  PROCESS(arrow::FloatType)              \
+  PROCESS(arrow::DoubleType)             \
+  PROCESS(arrow::Date32Type)             \
+  PROCESS(arrow::Date64Type)
+      if (project_outputs.size() == 1 &&
+          project_outputs[0]->type_id() != arrow::Type::STRING) {
+        switch (project_outputs[0]->type_id()) {
+#define PROCESS(InType)                                                   \
+  case TypeTraits<InType>::type_id: {                                     \
+    using ArrayType = precompile::TypeTraits<InType>::ArrayType;          \
+    auto typed_key_arr = std::make_shared<ArrayType>(project_outputs[0]); \
+    return hash_relation_->AppendKeyColumn(key_array, typed_key_arr);     \
+  } break;
+          PROCESS_SUPPORTED_TYPES(PROCESS)
+#undef PROCESS
+          default: {
+            return arrow::Status::NotImplemented(
+                "HashRelation Evaluate doesn't support single key type ",
+                project_outputs[0]->type_id());
+          } break;
+        }
+#undef PROCESS_SUPPORTED_TYPES
+      } else {
+        /* Append key array to UnsafeArray for later UnsafeRow projection */
+        std::vector<std::shared_ptr<UnsafeArray>> payloads;
+        int i = 0;
+        for (auto arr : project_outputs) {
+          std::shared_ptr<UnsafeArray> payload;
+          RETURN_NOT_OK(MakeUnsafeArray(arr->type(), i++, arr, &payload));
+          payloads.push_back(payload);
+        }
+        return hash_relation_->AppendKeyColumn(key_array, payloads);
       }
-      return hash_relation_->AppendKeyColumn(key_array, payloads);
     }
+    return arrow::Status::OK();
   }
 
   std::string GetSignature() { return ""; }
