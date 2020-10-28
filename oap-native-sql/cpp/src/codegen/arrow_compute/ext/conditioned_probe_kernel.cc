@@ -385,11 +385,6 @@ class ConditionedProbeKernel::Impl {
       }
     }
 
-    ~ConditionedProbeResultIterator() {
-      std::cout << "ConditionedProbeResultIterator total took "
-                << TIME_NANO_TO_STRING(total_elapse_) << std::endl;
-    }
-
 #define PROCESS_SUPPORTED_TYPES(PROCESS) \
   PROCESS(arrow::UInt8Type)              \
   PROCESS(arrow::Int8Type)               \
@@ -536,7 +531,6 @@ class ConditionedProbeKernel::Impl {
         const std::vector<std::shared_ptr<arrow::Array>>& in,
         std::shared_ptr<arrow::RecordBatch>* out,
         const std::shared_ptr<arrow::Array>& selection = nullptr) override {
-      auto start = std::chrono::steady_clock::now();
       // Get key array, which should be typed
       std::shared_ptr<arrow::Array> key_array;
       arrow::ArrayVector projected_keys_outputs;
@@ -593,15 +587,10 @@ class ConditionedProbeKernel::Impl {
         RETURN_NOT_OK(appender->Reset());
       }
       *out = arrow::RecordBatch::Make(result_schema_, out_length, out_arr_list);
-      auto end = std::chrono::steady_clock::now();
-      total_elapse_ +=
-          std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
       return arrow::Status::OK();
     }
 
    private:
-    uint64_t probe_elapse_ = 0;
-    uint64_t total_elapse_ = 0;
     class ProbeFunctionBase {
      public:
       virtual uint64_t Evaluate(std::shared_ptr<arrow::Array>) { return 0; }
@@ -888,13 +877,6 @@ class ConditionedProbeKernel::Impl {
       UnsafeSemiProbeFunction(std::shared_ptr<HashRelation> hash_relation,
                               std::vector<std::shared_ptr<AppenderBase>> appender_list)
           : hash_relation_(hash_relation), appender_list_(appender_list) {}
-      ~UnsafeSemiProbeFunction() {
-        std::cout << "total Get count is " << hash_relation_->total_get_
-                  << " times, and total step count is " << hash_relation_->total_steps_
-                  << " times, so avg step is "
-                  << (hash_relation_->total_steps_ / hash_relation_->total_get_) << "."
-                  << std::endl;
-      }
 #define PROCESS_SUPPORTED_TYPES(PROCESS) \
   PROCESS(arrow::BooleanType)            \
   PROCESS(arrow::UInt8Type)              \

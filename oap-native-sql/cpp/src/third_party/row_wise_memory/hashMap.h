@@ -238,8 +238,7 @@ static inline bool growAndRehashKeyArray(unsafeHashMap* hashMap) {
  *   -1 if not exists
  */
 template <typename CType>
-static inline int safeLookup(unsafeHashMap* hashMap, CType keyRow, int hashVal,
-                             int* _step = nullptr) {
+static inline int safeLookup(unsafeHashMap* hashMap, CType keyRow, int hashVal) {
   assert(hashMap->keyArray != NULL);
   int mask = hashMap->arrayCapacity - 1;
   int pos = hashVal & mask;
@@ -253,7 +252,6 @@ static inline int safeLookup(unsafeHashMap* hashMap, CType keyRow, int hashVal,
 
     if (KeyAddressOffset < 0) {
       // This is a new key.
-      if (_step != nullptr) *_step = step;
       return HASH_NEW_KEY;
     } else {
       if ((int)keyHashCode == hashVal) {
@@ -262,7 +260,6 @@ static inline int safeLookup(unsafeHashMap* hashMap, CType keyRow, int hashVal,
         // Full hash code matches.  Let's compare the keys for equality.
         char* record = base + KeyAddressOffset;
         if (keyRow == *((CType*)getKeyFromBytesMap(record))) {
-          if (_step != nullptr) *_step = step;
           return 0;
         }
       }
@@ -282,7 +279,7 @@ static inline int safeLookup(unsafeHashMap* hashMap, CType keyRow, int hashVal,
  *   -1 if not exists
  */
 static inline int safeLookup(unsafeHashMap* hashMap, std::shared_ptr<UnsafeRow> keyRow,
-                             int hashVal, int* _step = nullptr) {
+                             int hashVal) {
   assert(hashMap->keyArray != NULL);
   int mask = hashMap->arrayCapacity - 1;
   int pos = hashVal & mask;
@@ -296,7 +293,6 @@ static inline int safeLookup(unsafeHashMap* hashMap, std::shared_ptr<UnsafeRow> 
 
     if (KeyAddressOffset < 0) {
       // This is a new key.
-      if (_step != nullptr) *_step = step;
       return HASH_NEW_KEY;
     } else {
       if ((int)keyHashCode == hashVal) {
@@ -304,7 +300,6 @@ static inline int safeLookup(unsafeHashMap* hashMap, std::shared_ptr<UnsafeRow> 
         char* record = base + KeyAddressOffset;
         if ((getKeyLength(record) == keyLength) &&
             (memcmp(keyRow->data, getKeyFromBytesMap(record), keyLength) == 0)) {
-          if (_step != nullptr) *_step = step;
           return 0;
         }
       }

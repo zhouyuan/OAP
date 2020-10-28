@@ -198,22 +198,14 @@ class HashRelation {
     if (hash_table_ == nullptr) {
       throw std::runtime_error("HashRelation Get failed, hash_table is null.");
     }
-    int step;
-    auto res = safeLookup(hash_table_, payload, v, &step);
-    total_get_++;
-    total_steps_ += step;
-    return res;
+    return safeLookup(hash_table_, payload, v);
   }
 
   int IfExists(int32_t v, std::shared_ptr<UnsafeRow> payload) {
     if (hash_table_ == nullptr) {
       throw std::runtime_error("HashRelation Get failed, hash_table is null.");
     }
-    int step;
-    auto res = safeLookup(hash_table_, payload, v, &step);
-    total_get_++;
-    total_steps_ += step;
-    return res;
+    return safeLookup(hash_table_, payload, v);
   }
 
   int GetNull() { return null_index_set_ ? 0 : HASH_NEW_KEY; }
@@ -237,8 +229,6 @@ class HashRelation {
       return arrow::Status::Invalid("UnsafeGetHashTableObject hash_table is null");
     }
     // dump(hash_table_);
-    std::cout << "HashRelation UnsafeGetHashTableObject contains numKeys of "
-              << hash_table_->numKeys << std::endl;
     addrs[0] = (int64_t)hash_table_;
     sizes[0] = (int)sizeof(unsafeHashMap);
 
@@ -267,8 +257,6 @@ class HashRelation {
   }
 
   virtual std::vector<ArrayItemIndex> GetItemListByIndex(int i) { return arrayid_list_; }
-  uint64_t total_steps_ = 0;
-  uint64_t total_get_ = 0;
 
  protected:
   bool unsafe_set = false;
