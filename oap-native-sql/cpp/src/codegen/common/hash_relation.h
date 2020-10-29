@@ -120,9 +120,10 @@ class HashRelation {
 
   HashRelation(
       arrow::compute::FunctionContext* ctx,
-      const std::vector<std::shared_ptr<HashRelationColumn>>& hash_relation_column)
+      const std::vector<std::shared_ptr<HashRelationColumn>>& hash_relation_column,
+      int key_size = -1)
       : HashRelation(hash_relation_column) {
-    hash_table_ = createUnsafeHashMap(1024 * 1024, 256 * 1024 * 1024);
+    hash_table_ = createUnsafeHashMap(1024 * 1024, 256 * 1024 * 1024, key_size);
   }
 
   ~HashRelation() {
@@ -275,7 +276,7 @@ class HashRelation {
     sizes[0] = (int)sizeof(unsafeHashMap);
 
     addrs[1] = (int64_t)(hash_table_->keyArray);
-    sizes[1] = (int)(hash_table_->arrayCapacity * 2 * 4);
+    sizes[1] = (int)(hash_table_->arrayCapacity * hash_table_->bytesInKeyArray);
 
     addrs[2] = (int64_t)(hash_table_->bytesMap);
     sizes[2] = (int)(hash_table_->cursor);
@@ -286,7 +287,7 @@ class HashRelation {
     assert(len == 3);
     hash_table_ = (unsafeHashMap*)addrs[0];
     hash_table_->cursor = sizes[2];
-    hash_table_->keyArray = (int*)addrs[1];
+    hash_table_->keyArray = (char*)addrs[1];
     hash_table_->bytesMap = (char*)addrs[2];
     unsafe_set = true;
     // dump(hash_table_);
@@ -299,6 +300,8 @@ class HashRelation {
   }
 
   virtual std::vector<ArrayItemIndex> GetItemListByIndex(int i) { return arrayid_list_; }
+
+  void TESTGrowAndRehashKeyArray() { growAndRehashKeyArray(hash_table_); }
 
  protected:
   bool unsafe_set = false;

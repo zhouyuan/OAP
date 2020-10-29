@@ -85,13 +85,13 @@ static inline void appendToUnsafeRow(UnsafeRow* row, const int& index, const T& 
 static inline void appendToUnsafeRow(UnsafeRow* row, const int& index,
                                      const std::string& str) {
   int numBytes = str.size();
-  int roundedSize = roundNumberOfBytesToNearestWord(numBytes);
+  // int roundedSize = roundNumberOfBytesToNearestWord(numBytes);
 
-  zeroOutPaddingBytes(row, numBytes);
+  // zeroOutPaddingBytes(row, numBytes);
   memcpy(row->data + row->cursor, str.c_str(), numBytes);
 
   // move the cursor forward.
-  row->cursor += roundedSize;
+  row->cursor += numBytes;
 }
 
 static inline void appendToUnsafeRow(UnsafeRow* row, const int& index,

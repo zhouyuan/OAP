@@ -116,9 +116,19 @@ class HashRelationKernel::Impl {
       hash_input_schema_ = arrow::schema(key_hash_field_list);
       THROW_NOT_OK(gandiva::Projector::Make(hash_input_schema_, {key_hash_expr},
                                             configuration, &key_projector_));
-      hash_relation_ = std::make_shared<HashRelation>(ctx_, hash_relation_list);
+      if (key_hash_field_list.size() == 1 &&
+          key_hash_field_list[0]->type()->id() != arrow::Type::STRING) {
+        // If single key case, we can put key in KeyArray
+        auto key_type = std::dynamic_pointer_cast<arrow::FixedWidthType>(
+            key_hash_field_list[0]->type());
+        auto key_size = key_type->bit_width() / 8;
+        hash_relation_ =
+            std::make_shared<HashRelation>(ctx_, hash_relation_list, key_size);
+      } else {
+        hash_relation_ = std::make_shared<HashRelation>(ctx_, hash_relation_list);
+      }
     } else {
-      hash_relation_ = std::make_shared<HashRelation>(ctx_, hash_relation_list);
+      hash_relation_ = std::make_shared<HashRelation>(hash_relation_list);
     }
   }
 
@@ -126,6 +136,7 @@ class HashRelationKernel::Impl {
     for (int i = 0; i < in.size(); i++) {
       RETURN_NOT_OK(hash_relation_->AppendPayloadColumn(i, in[i]));
     }
+    if (builder_type_ == 2) return arrow::Status::OK();
     std::shared_ptr<arrow::Array> key_array;
     if (builder_type_ == 0) {
       if (key_projector_) {
