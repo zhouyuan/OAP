@@ -171,7 +171,8 @@ class HashRelationKernel::Impl {
   PROCESS(arrow::FloatType)              \
   PROCESS(arrow::DoubleType)             \
   PROCESS(arrow::Date32Type)             \
-  PROCESS(arrow::Date64Type)
+  PROCESS(arrow::Date64Type)             \
+  PROCESS(arrow::StringType)
       if (project_outputs.size() == 1 &&
           project_outputs[0]->type_id() != arrow::Type::STRING) {
         switch (project_outputs[0]->type_id()) {

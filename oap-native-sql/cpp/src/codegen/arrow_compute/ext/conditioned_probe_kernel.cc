@@ -223,8 +223,7 @@ class ConditionedProbeKernel::Impl {
     std::vector<std::string> project_output_list;
     auto unsafe_row_name = "unsafe_row_" + std::to_string(hash_relation_id_);
     bool do_unsafe_row = true;
-    if (right_key_project_codegen_.size() == 1 &&
-        right_key_project_codegen_[0]->result()->type()->id() != arrow::Type::STRING) {
+    if (right_key_project_codegen_.size() == 1) {
       // when right_key is single and not string, we don't need to use unsafeRow
       // chendi: But we still use name unsafe_row_${id} to pass key data
       prepare_ss << GetCTypeString(right_key_project_codegen_[0]->result()->type()) << " "
@@ -626,8 +625,7 @@ class ConditionedProbeKernel::Impl {
         bool do_unsafe_row = true;
         std::function<int(int i)> fast_probe;
         /* for single key case, we don't need to create unsafeRow */
-        if (key_payloads.size() == 1 &&
-            key_payloads[0]->type_id() != arrow::Type::STRING) {
+        if (key_payloads.size() == 1) {
           do_unsafe_row = false;
           switch (key_payloads[0]->type_id()) {
 #define PROCESS(InType)                                                      \
@@ -641,6 +639,13 @@ class ConditionedProbeKernel::Impl {
   } break;
             PROCESS_SUPPORTED_TYPES(PROCESS)
 #undef PROCESS
+            case TypeTraits<arrow::StringType>::type_id: {
+              auto typed_first_key_arr = std::make_shared<StringArray>(key_payloads[0]);
+              fast_probe = [this, typed_key_array, typed_first_key_arr](int i) {
+                return hash_relation_->Get(typed_key_array->GetView(i),
+                                           typed_first_key_arr->GetString(i));
+              };
+            } break;
             default: {
               throw std::runtime_error(
                   "UnsafeInnerProbeFunction Evaluate doesn't support single key type ");
@@ -715,8 +720,7 @@ class ConditionedProbeKernel::Impl {
         bool do_unsafe_row = true;
         std::function<int(int i)> fast_probe;
         /* for single key case, we don't need to create unsafeRow */
-        if (key_payloads.size() == 1 &&
-            key_payloads[0]->type_id() != arrow::Type::STRING) {
+        if (key_payloads.size() == 1) {
           do_unsafe_row = false;
           switch (key_payloads[0]->type_id()) {
 #define PROCESS(InType)                                                      \
@@ -730,6 +734,13 @@ class ConditionedProbeKernel::Impl {
   } break;
             PROCESS_SUPPORTED_TYPES(PROCESS)
 #undef PROCESS
+            case TypeTraits<arrow::StringType>::type_id: {
+              auto typed_first_key_arr = std::make_shared<StringArray>(key_payloads[0]);
+              fast_probe = [this, typed_key_array, typed_first_key_arr](int i) {
+                return hash_relation_->Get(typed_key_array->GetView(i),
+                                           typed_first_key_arr->GetString(i));
+              };
+            } break;
             default: {
               throw std::runtime_error(
                   "UnsafeOuterProbeFunction Evaluate doesn't support single key type ");
@@ -812,8 +823,7 @@ class ConditionedProbeKernel::Impl {
         bool do_unsafe_row = true;
         std::function<int(int i)> fast_probe;
         /* for single key case, we don't need to create unsafeRow */
-        if (key_payloads.size() == 1 &&
-            key_payloads[0]->type_id() != arrow::Type::STRING) {
+        if (key_payloads.size() == 1) {
           do_unsafe_row = false;
           switch (key_payloads[0]->type_id()) {
 #define PROCESS(InType)                                                      \
@@ -827,6 +837,13 @@ class ConditionedProbeKernel::Impl {
   } break;
             PROCESS_SUPPORTED_TYPES(PROCESS)
 #undef PROCESS
+            case TypeTraits<arrow::StringType>::type_id: {
+              auto typed_first_key_arr = std::make_shared<StringArray>(key_payloads[0]);
+              fast_probe = [this, typed_key_array, typed_first_key_arr](int i) {
+                return hash_relation_->IfExists(typed_key_array->GetView(i),
+                                                typed_first_key_arr->GetString(i));
+              };
+            } break;
             default: {
               throw std::runtime_error(
                   "UnsafeAntiProbeFunction Evaluate doesn't support single key type ");
@@ -899,8 +916,7 @@ class ConditionedProbeKernel::Impl {
         bool do_unsafe_row = true;
         std::function<int(int i)> fast_probe;
         /* for single key case, we don't need to create unsafeRow */
-        if (key_payloads.size() == 1 &&
-            key_payloads[0]->type_id() != arrow::Type::STRING) {
+        if (key_payloads.size() == 1) {
           do_unsafe_row = false;
           switch (key_payloads[0]->type_id()) {
 #define PROCESS(InType)                                                      \
@@ -914,6 +930,13 @@ class ConditionedProbeKernel::Impl {
   } break;
             PROCESS_SUPPORTED_TYPES(PROCESS)
 #undef PROCESS
+            case TypeTraits<arrow::StringType>::type_id: {
+              auto typed_first_key_arr = std::make_shared<StringArray>(key_payloads[0]);
+              fast_probe = [this, typed_key_array, typed_first_key_arr](int i) {
+                return hash_relation_->IfExists(typed_key_array->GetView(i),
+                                                typed_first_key_arr->GetString(i));
+              };
+            } break;
             default: {
               throw std::runtime_error(
                   "UnsafeSemiProbeFunction Evaluate doesn't support single key type ");
@@ -989,8 +1012,7 @@ class ConditionedProbeKernel::Impl {
         bool do_unsafe_row = true;
         std::function<int(int i)> fast_probe;
         /* for single key case, we don't need to create unsafeRow */
-        if (key_payloads.size() == 1 &&
-            key_payloads[0]->type_id() != arrow::Type::STRING) {
+        if (key_payloads.size() == 1) {
           do_unsafe_row = false;
           switch (key_payloads[0]->type_id()) {
 #define PROCESS(InType)                                                      \
@@ -1004,6 +1026,13 @@ class ConditionedProbeKernel::Impl {
   } break;
             PROCESS_SUPPORTED_TYPES(PROCESS)
 #undef PROCESS
+            case TypeTraits<arrow::StringType>::type_id: {
+              auto typed_first_key_arr = std::make_shared<StringArray>(key_payloads[0]);
+              fast_probe = [this, typed_key_array, typed_first_key_arr](int i) {
+                return hash_relation_->IfExists(typed_key_array->GetView(i),
+                                                typed_first_key_arr->GetString(i));
+              };
+            } break;
             default: {
               throw std::runtime_error(
                   "UnsafeSemiProbeFunction Evaluate doesn't support single key type ");

@@ -273,6 +273,40 @@ static inline int safeLookup(unsafeHashMap* hashMap, CType keyRow, int hashVal) 
   assert(0);
 }
 
+static inline int safeLookup(unsafeHashMap* hashMap, const char* keyRow, size_t keyRowLen,
+                             int hashVal) {
+  assert(hashMap->keyArray != NULL);
+  int mask = hashMap->arrayCapacity - 1;
+  int pos = hashVal & mask;
+  int step = 1;
+  int keyLength = keyRowLen;
+  char* base = hashMap->bytesMap;
+
+  while (true) {
+    int KeyAddressOffset = hashMap->keyArray[pos * 2];
+    int keyHashCode = hashMap->keyArray[pos * 2 + 1];
+
+    if (KeyAddressOffset < 0) {
+      // This is a new key.
+      return HASH_NEW_KEY;
+    } else {
+      if ((int)keyHashCode == hashVal) {
+        // Full hash code matches.  Let's compare the keys for equality.
+        char* record = base + KeyAddressOffset;
+        if (memcmp(keyRow, getKeyFromBytesMap(record), keyLength)) {
+          return 0;
+        }
+      }
+    }
+
+    pos = (pos + step) & mask;
+    step++;
+  }
+
+  // Cannot reach here
+  assert(0);
+}
+
 /*
  * return:
  *   0 if exists
@@ -340,6 +374,46 @@ static inline int safeLookup(unsafeHashMap* hashMap, CType keyRow, int hashVal,
         // Full hash code matches.  Let's compare the keys for equality.
         char* record = base + KeyAddressOffset;
         if (keyRow == *((CType*)getKeyFromBytesMap(record))) {
+          // there may be more than one record
+          while (record != nullptr) {
+            (*output).push_back(getValueFromBytesMap(record));
+            KeyAddressOffset = getNextOffsetFromBytesMap(record);
+            record = KeyAddressOffset == 0 ? nullptr : (base + KeyAddressOffset);
+          }
+          return 0;
+        }
+      }
+    }
+
+    pos = (pos + step) & mask;
+    step++;
+  }
+
+  // Cannot reach here
+  assert(0);
+}
+
+static inline int safeLookup(unsafeHashMap* hashMap, const char* keyRow, size_t keyRowLen,
+                             int hashVal, std::vector<char*>* output) {
+  assert(hashMap->keyArray != NULL);
+  int mask = hashMap->arrayCapacity - 1;
+  int pos = hashVal & mask;
+  int step = 1;
+  int keyLength = keyRowLen;
+  char* base = hashMap->bytesMap;
+
+  while (true) {
+    int KeyAddressOffset = hashMap->keyArray[pos * 2];
+    int keyHashCode = hashMap->keyArray[pos * 2 + 1];
+
+    if (KeyAddressOffset < 0) {
+      // This is a new key.
+      return HASH_NEW_KEY;
+    } else {
+      if ((int)keyHashCode == hashVal) {
+        // Full hash code matches.  Let's compare the keys for equality.
+        char* record = base + KeyAddressOffset;
+        if (memcmp(keyRow, getKeyFromBytesMap(record), keyLength)) {
           // there may be more than one record
           while (record != nullptr) {
             (*output).push_back(getValueFromBytesMap(record));

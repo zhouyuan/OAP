@@ -102,6 +102,11 @@ class TypedHashRelationColumn<DataType, enable_if_string_like<DataType>>
   std::vector<std::shared_ptr<StringArray>> array_vector_;
 };
 
+template <typename T>
+using is_number_alike =
+    std::integral_constant<bool, std::is_arithmetic<T>::value ||
+                                     std::is_floating_point<T>::value>;
+
 /////////////////////////////////////////////////////////////////////////
 
 class HashRelation {
@@ -164,13 +169,42 @@ class HashRelation {
     return arrow::Status::OK();
   }
 
-  template <typename CType>
+  arrow::Status AppendKeyColumn(std::shared_ptr<arrow::Array> in,
+                                std::shared_ptr<StringArray> original_key) {
+    // This Key should be Hash Key
+    auto typed_array = std::make_shared<ArrayType>(in);
+    for (int i = 0; i < typed_array->length(); i++) {
+      RETURN_NOT_OK(
+          Insert(typed_array->GetView(i), original_key->GetString(i), num_arrays_, i));
+    }
+
+    num_arrays_++;
+    // DumpHashMap();
+    return arrow::Status::OK();
+  }
+
+  template <typename CType,
+            typename std::enable_if_t<is_number_alike<CType>::value>* = nullptr>
   int Get(int32_t v, CType payload) {
     if (hash_table_ == nullptr) {
       throw std::runtime_error("HashRelation Get failed, hash_table is null.");
     }
     std::vector<char*> res_out;
     auto res = safeLookup(hash_table_, payload, v, &res_out);
+    if (res == -1) return -1;
+    arrayid_list_.clear();
+    for (auto index : res_out) {
+      arrayid_list_.push_back(*((ArrayItemIndex*)index));
+    }
+    return 0;
+  }
+
+  int Get(int32_t v, std::string payload) {
+    if (hash_table_ == nullptr) {
+      throw std::runtime_error("HashRelation Get failed, hash_table is null.");
+    }
+    std::vector<char*> res_out;
+    auto res = safeLookup(hash_table_, payload.data(), payload.size(), v, &res_out);
     if (res == -1) return -1;
     arrayid_list_.clear();
     for (auto index : res_out) {
@@ -193,12 +227,20 @@ class HashRelation {
     return 0;
   }
 
-  template <typename CType>
+  template <typename CType,
+            typename std::enable_if_t<is_number_alike<CType>::value>* = nullptr>
   int IfExists(int32_t v, CType payload) {
     if (hash_table_ == nullptr) {
       throw std::runtime_error("HashRelation Get failed, hash_table is null.");
     }
     return safeLookup(hash_table_, payload, v);
+  }
+
+  int IfExists(int32_t v, std::string payload) {
+    if (hash_table_ == nullptr) {
+      throw std::runtime_error("HashRelation Get failed, hash_table is null.");
+    }
+    return safeLookup(hash_table_, payload.data(), payload.size(), v);
   }
 
   int IfExists(int32_t v, std::shared_ptr<UnsafeRow> payload) {
