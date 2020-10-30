@@ -470,11 +470,11 @@ class ConditionedJoinArraysKernel::Impl {
       auto right_content =)" +
            right_value + R"(;
         if (!typed_array_0->IsNull(i)) {
-            while (left_it->value() < right_content && left_it->hasnext()) {
+            while (left_it->hasnext() && left_it->value() < right_content) {
             left_it->next();
             }
             int64_t cur_idx, seg_len, pl; left_it->getpos(&cur_idx, &seg_len, &pl);
-            while(left_it->value() == right_content && left_it->hasnext()) {
+            while(left_it->hasnext() && left_it->value() == right_content) {
               auto tmp = GetArrayItemIdex(left_it);)" +
            shuffle_str + R"(
               //if (left_it->value() > right_content && left_it->hasnext()){
@@ -529,11 +529,11 @@ class ConditionedJoinArraysKernel::Impl {
       auto right_content =)" +
            right_value + R"(;
       if (!typed_array_0->IsNull(i)) {
-         while (left_it->value() < right_content && left_it->hasnext()) {
+         while (left_it->hasnext() && left_it->value() < right_content ) {
     left_it->next();
   }
   int64_t cur_idx, seg_len, pl; left_it->getpos(&cur_idx, &seg_len, &pl);
-  while(left_it->value() == right_content && left_it->hasnext()) {
+  while(left_it->hasnext() && left_it->value() == right_content) {
     auto tmp = GetArrayItemIdex(left_it);
           )" +  // TODO: cond check
            left_valid_ss.str() +
@@ -560,7 +560,7 @@ class ConditionedJoinArraysKernel::Impl {
 
         } else {
           int64_t cur_idx, seg_len, pl; left_it->getpos(&cur_idx, &seg_len, &pl);
-          while(left_it->value() == right_content && left_it->hasnext()) {
+          while(left_it->hasnext() && left_it->value() == right_content) {
             auto tmp = GetArrayItemIdex(left_it);
             )" +
            left_valid_ss.str() + right_valid_ss.str() + R"(
@@ -609,14 +609,14 @@ class ConditionedJoinArraysKernel::Impl {
       )";
     }
     return R"(
-  while (left_it->value() < typed_array_0->GetView(i) && left_it->hasnext()) {
+  while (left_it->hasnext() && left_it->value() < typed_array_0->GetView(i)) {
     left_it->next();
   }
 
   int64_t cur_idx, seg_len, pl; left_it->getpos(&cur_idx, &seg_len, &pl);
   bool found = false;
   bool hasequaled = false;
-  while (left_it->value() == typed_array_0->GetView(i) && left_it->hasnext()) {
+  while (left_it->hasnext() && left_it->value() == typed_array_0->GetView(i)) {
     )" + shuffle_str +
            R"(
     left_it->setpos(cur_idx, seg_len, pl);
@@ -648,7 +648,7 @@ class ConditionedJoinArraysKernel::Impl {
     std::string shuffle_str;
     if (cond_check) {
       shuffle_str = R"(
-        while (left_it->value() == typed_array_0->GetView(i) && left_it->hasnext()) {
+        while (left_it->hasnext() && left_it->value() == typed_array_0->GetView(i)) {
             auto tmp = GetArrayItemIdex(left_it);
               if (ConditionCheck(tmp, i)) {
                 )" + ss.str() +
@@ -667,7 +667,7 @@ class ConditionedJoinArraysKernel::Impl {
     }
     return R"(
              if (!typed_array_0->IsNull(i)) {
-  while (left_it->value() < typed_array_0->GetView(i) && left_it->hasnext()) {
+  while (left_it->hasnext() && left_it->value() < typed_array_0->GetView(i)) {
     left_it->next();
   }
   
