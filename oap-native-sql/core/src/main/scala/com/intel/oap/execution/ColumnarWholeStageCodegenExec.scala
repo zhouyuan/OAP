@@ -191,6 +191,7 @@ case class ColumnarWholeStageCodegenExec(child: SparkPlan)(val codegenStageId: I
     val numOutputBatches = child.longMetric("numOutputBatches")
     val totalTime = child.longMetric("processTime")
     val pipelineTime = longMetric("pipelineTime")
+    val timeout = ColumnarPluginConfig.getConf(sparkConf).broadcastCacheTimeout
 
     var build_elapse: Long = 0
     var eval_elapse: Long = 0
@@ -200,6 +201,7 @@ case class ColumnarWholeStageCodegenExec(child: SparkPlan)(val codegenStageId: I
     val dependentKernelIterators: ListBuffer[BatchIterator] = ListBuffer()
     val hashRelationBatchHolder: ListBuffer[ColumnarBatch] = ListBuffer()
     val serializableObjectHolder: ListBuffer[SerializableObject] = ListBuffer()
+    val relationHolder: ListBuffer[ColumnarHashedRelation] = ListBuffer()
     var idx = 0
     var curRDD = inputRDDs()(0)
     while (idx < hashBuildPlans.length) {
@@ -215,6 +217,7 @@ case class ColumnarWholeStageCodegenExec(child: SparkPlan)(val codegenStageId: I
             // received broadcast value contain a hashmap and raw recordBatch
             val beforeFetch = System.nanoTime()
             val relation = buildInputByteBuf.value.asReadOnlyCopy
+            relationHolder += relation
             fetchTime += ((System.nanoTime() - beforeFetch) / 1000000)
             val beforeEval = System.nanoTime()
             val hashRelationObject = relation.hashRelationObj
@@ -322,6 +325,7 @@ case class ColumnarWholeStageCodegenExec(child: SparkPlan)(val codegenStageId: I
         dependentKernelIterators.foreach(_.close)
         nativeKernel.close
         nativeIterator.close
+        relationHolder.foreach(r => r.countDownClose(timeout))
       }
 
       // now we can return this wholestagecodegen iter
@@ -361,8 +365,8 @@ case class ColumnarWholeStageCodegenExec(child: SparkPlan)(val codegenStageId: I
         }
       }
       SparkMemoryUtils.addLeakSafeTaskCompletionListener[Unit](_ => {
-          close
-        })
+        close
+      })
       new CloseableColumnBatchIterator(res)
     }
   }

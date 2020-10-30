@@ -18,41 +18,76 @@
 package com.intel.oap.execution
 
 import java.io._
+import java.util.concurrent.atomic.{AtomicInteger, AtomicBoolean}
 import com.esotericsoftware.kryo.{Kryo, KryoSerializable}
 import com.esotericsoftware.kryo.io.{Input, Output}
 import com.intel.oap.expression.ConverterUtils
 import com.intel.oap.vectorized.{ArrowWritableColumnVector, SerializableObject}
 import org.apache.spark.sql.vectorized.{ColumnVector, ColumnarBatch}
+import scala.concurrent.Future
+import scala.concurrent.ExecutionContext.Implicits.global
+import scala.util.{Failure, Success}
+import java.util.concurrent.atomic.AtomicBoolean
 
 class ColumnarHashedRelation(
     var hashRelationObj: SerializableObject,
     var arrowColumnarBatch: Array[ColumnarBatch],
     var arrowColumnarBatchSize: Int)
     extends Externalizable
-    with KryoSerializable
-    with AutoCloseable {
+    with KryoSerializable {
+  val refCnt: AtomicInteger = new AtomicInteger()
+  val closed: AtomicBoolean = new AtomicBoolean()
 
   def this() = {
     this(null, null, 0)
   }
 
   def asReadOnlyCopy(): ColumnarHashedRelation = {
-    new ColumnarHashedRelation(hashRelationObj, arrowColumnarBatch, arrowColumnarBatchSize)
+    //new ColumnarHashedRelation(hashRelationObj, arrowColumnarBatch, arrowColumnarBatchSize)
+    refCnt.incrementAndGet()
+    this
   }
 
-  override def close(): Unit = {
-    hashRelationObj.close
-    arrowColumnarBatch.foreach(_.close)
-    System.out.println("ColumnarHashedRelation closed")
+  def close(waitTime: Int): Future[Int] = Future {
+    Thread.sleep(waitTime * 1000)
+    if (refCnt.get == 0) {
+      if (!closed.getAndSet(true)) {
+        hashRelationObj.close
+        arrowColumnarBatch.foreach(_.close)
+        System.err.println(s"ColumnarHashedRelation close called")
+      }
+    }
+    refCnt.get
+  }
+
+  def countDownClose(waitTime: Int = -1): Unit = {
+    val curRefCnt = refCnt.decrementAndGet()
+    if (waitTime == -1) return
+    if (curRefCnt == 0) {
+      close(waitTime).onComplete {
+        case Success(resRefCnt) => {}
+        case Failure(e) =>
+          System.err.println(s"Failed to close ColumnarHashedRelation, exception = $e")
+      }
+    }
+  }
+
+  override def finalize(): Unit = {
+    if (!closed.getAndSet(true)) {
+      hashRelationObj.close
+      arrowColumnarBatch.foreach(_.close)
+    }
   }
 
   override def writeExternal(out: ObjectOutput): Unit = {
+    if (closed.get()) return
     out.writeObject(hashRelationObj)
     val rawArrowData = ConverterUtils.convertToNetty(arrowColumnarBatch)
     out.writeObject(rawArrowData)
   }
 
   override def write(kryo: Kryo, out: Output): Unit = {
+    if (closed.get()) return
     kryo.writeObject(out, hashRelationObj)
     val rawArrowData = ConverterUtils.convertToNetty(arrowColumnarBatch)
     kryo.writeObject(out, rawArrowData)
@@ -65,10 +100,10 @@ class ColumnarHashedRelation(
     arrowColumnarBatch =
       ConverterUtils.convertFromNetty(null, new ByteArrayInputStream(rawArrowData)).toArray
     // retain all cols
-    arrowColumnarBatch.foreach(cb => {
+    /*arrowColumnarBatch.foreach(cb => {
       (0 until cb.numCols).toList.foreach(i =>
         cb.column(i).asInstanceOf[ArrowWritableColumnVector].retain())
-    })
+    })*/
   }
 
   override def read(kryo: Kryo, in: Input): Unit = {
@@ -79,10 +114,11 @@ class ColumnarHashedRelation(
     arrowColumnarBatch =
       ConverterUtils.convertFromNetty(null, new ByteArrayInputStream(rawArrowData)).toArray
     // retain all cols
-    arrowColumnarBatch.foreach(cb => {
+    /*arrowColumnarBatch.foreach(cb => {
       (0 until cb.numCols).toList.foreach(i =>
-        cb.column(i).asInstanceOf[ArrowWritableColumnVector].retain())
-    })
+        cb.column(i).asInstanceOf[ArrowWr:w
+        itableColumnVector].retain())
+    })*/
   }
 
   def size(): Int = {
@@ -90,6 +126,9 @@ class ColumnarHashedRelation(
   }
 
   def getColumnarBatchAsIter: Iterator[ColumnarBatch] = {
+    if (closed.get())
+      throw new InvalidObjectException(
+        s"can't getColumnarBatchAsIter from a deleted ColumnarHashedRelation.")
     new Iterator[ColumnarBatch] {
       var idx = 0
       val total_len = arrowColumnarBatch.length

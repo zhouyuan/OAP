@@ -186,6 +186,8 @@ case class ColumnarBroadcastHashJoinExec(
     var eval_elapse: Long = 0
     val buildInputByteBuf = buildPlan.executeBroadcast[ColumnarHashedRelation]()
 
+    val timeout = ColumnarPluginConfig.getConf(sparkConf).broadcastCacheTimeout
+
     streamedPlan.executeColumnar().mapPartitions { iter =>
       val hashRelationKernel = new ExpressionEvaluator()
       val hashRelationBatchHolder: ListBuffer[ColumnarBatch] = ListBuffer()
@@ -252,6 +254,7 @@ case class ColumnarBroadcastHashJoinExec(
         hashRelationResultIterator.close
         nativeKernel.close
         nativeIterator.close
+        relation.countDownClose(timeout)
       }
 
       // now we can return this wholestagecodegen iter
@@ -290,8 +293,8 @@ case class ColumnarBroadcastHashJoinExec(
         }
       }
       SparkMemoryUtils.addLeakSafeTaskCompletionListener[Unit](_ => {
-          close
-        })
+        close
+      })
       new CloseableColumnBatchIterator(res)
     }
   }
@@ -383,6 +386,7 @@ case class ColumnarBroadcastHashJoinExec(
     val listJars = uploadAndListJars(signature)
     val buildInputByteBuf = buildPlan.executeBroadcast[ColumnarHashedRelation]()
     val hashRelationBatchHolder: ListBuffer[ColumnarBatch] = ListBuffer()
+    val timeout = ColumnarPluginConfig.getConf(sparkConf).broadcastCacheTimeout
 
     streamedPlan.executeColumnar().mapPartitions { streamIter =>
       ColumnarPluginConfig.getConf(sparkConf)
@@ -449,6 +453,7 @@ case class ColumnarBroadcastHashJoinExec(
         hashRelationResultIterator.close
         nativeKernel.close
         nativeIterator.close
+        relation.countDownClose(timeout)
       }
       val resultStructType = ArrowUtils.fromArrowSchema(resCtx.outputSchema)
       val res = new Iterator[ColumnarBatch] {
@@ -485,8 +490,8 @@ case class ColumnarBroadcastHashJoinExec(
         }
       }
       SparkMemoryUtils.addLeakSafeTaskCompletionListener[Unit](_ => {
-          close
-        })
+        close
+      })
       new CloseableColumnBatchIterator(res)
     }
 

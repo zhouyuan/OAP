@@ -146,7 +146,7 @@ object ConverterUtils extends Logging {
       attributes: Seq[Attribute],
       input: InputStream): Iterator[ColumnarBatch] = {
     new Iterator[ColumnarBatch] {
-      val allocator = ArrowWritableColumnVector.getNewAllocator
+      val allocator = ArrowWritableColumnVector.getAllocator
       var messageReader =
         new MessageChannelReader(new ReadChannel(Channels.newChannel(input)), allocator)
       var schema: Schema = null
