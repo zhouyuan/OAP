@@ -485,7 +485,8 @@ class ConditionedJoinArraysKernel::Impl {
   }
   std::string GetOuterJoin(bool cond_check,
                            const std::vector<int>& left_shuffle_index_list,
-                           const std::vector<int>& right_shuffle_index_list) {
+                           const std::vector<int>& right_shuffle_index_list,
+                           const std::vector<int>& right_key_index_list) {
     std::stringstream left_null_ss;
     std::stringstream left_valid_ss;
     std::stringstream right_valid_ss;
@@ -516,13 +517,23 @@ class ConditionedJoinArraysKernel::Impl {
               out_length += 1;
       )";
     }
+
+    std::string right_value;
+    if (right_key_index_list.size() > 1) {
+      // TODO: fix key size
+      right_value = "item_content{typed_array_0->GetView(i), typed_array_1->GetView(i)}";
+    } else {
+      right_value = "typed_array_0->GetView(i)";
+    }
     return R"(
+      auto right_content =)" +
+           right_value + R"(;
       if (!typed_array_0->IsNull(i)) {
-         while (left_it->value() < typed_array_0->GetView(i) && left_it->hasnext()) {
+         while (left_it->value() < right_content && left_it->hasnext()) {
     left_it->next();
   }
   int64_t cur_idx, seg_len, pl; left_it->getpos(&cur_idx, &seg_len, &pl);
-  while(left_it->value() == typed_array_0->GetView(i) && left_it->hasnext()) {
+  while(left_it->value() == right_content && left_it->hasnext()) {
     auto tmp = GetArrayItemIdex(left_it);
           )" +  // TODO: cond check
            left_valid_ss.str() +
@@ -532,7 +543,7 @@ class ConditionedJoinArraysKernel::Impl {
           out_length += 1;
         }
         left_it->setpos(cur_idx, seg_len, pl);
-        if(left_it->value() > typed_array_0->GetView(i) && left_it->hasnext() ) {
+        if(left_it->value() > right_content && left_it->hasnext() ) {
           if (last_match_idx == i) {
             continue;
           }
@@ -549,7 +560,7 @@ class ConditionedJoinArraysKernel::Impl {
 
         } else {
           int64_t cur_idx, seg_len, pl; left_it->getpos(&cur_idx, &seg_len, &pl);
-          while(left_it->value() == typed_array_0->GetView(i) && left_it->hasnext()) {
+          while(left_it->value() == right_content && left_it->hasnext()) {
             auto tmp = GetArrayItemIdex(left_it);
             )" +
            left_valid_ss.str() + right_valid_ss.str() + R"(
@@ -737,7 +748,7 @@ class ConditionedJoinArraysKernel::Impl {
       } break;
       case 1: { /*Outer Join*/
         return GetOuterJoin(cond_check, left_shuffle_index_list,
-                            right_shuffle_index_list);
+                            right_shuffle_index_list, right_key_index_list);
       } break;
       case 2: { /*Anti Join*/
         return GetAntiJoin(cond_check, left_shuffle_index_list, right_shuffle_index_list);
