@@ -636,7 +636,8 @@ class ConditionedJoinArraysKernel::Impl {
   }
   std::string GetSemiJoin(bool cond_check,
                           const std::vector<int>& left_shuffle_index_list,
-                          const std::vector<int>& right_shuffle_index_list) {
+                          const std::vector<int>& right_shuffle_index_list,
+                          const std::vector<int>& right_key_index_list) {
     std::stringstream ss;
     for (auto i : left_shuffle_index_list) {
       ss << "RETURN_NOT_OK(builder_0_" << i << "_->AppendNull());" << std::endl;
@@ -648,7 +649,7 @@ class ConditionedJoinArraysKernel::Impl {
     std::string shuffle_str;
     if (cond_check) {
       shuffle_str = R"(
-        while (left_it->hasnext() && left_it->value() == typed_array_0->GetView(i)) {
+        while (left_it->hasnext() && left_it->value() == right_content) {
             auto tmp = GetArrayItemIdex(left_it);
               if (ConditionCheck(tmp, i)) {
                 )" + ss.str() +
@@ -659,15 +660,23 @@ class ConditionedJoinArraysKernel::Impl {
       )";
     } else {
       shuffle_str = R"(
-        if (left_it->value() == typed_array_0->GetView(i) && left_it->hasnext()) {
+        if (left_it->value() == right_content && left_it->hasnext()) {
               )" + ss.str() +
                     R"(
               out_length += 1;
       )";
     }
+    std::string right_value;
+    if (right_key_index_list.size() > 1) {
+      // TODO: fix key size
+      right_value = "item_content{typed_array_0->GetView(i), typed_array_1->GetView(i), typed_array_2->GetView(i), typed_array_3->GetView(i), typed_array_4->GetView(i), typed_array_5->GetView(i)}";
+    } else {
+      right_value = "typed_array_0->GetView(i)";
+    }
     return R"(
+      auto right_content = )" + right_value + R"(;
              if (!typed_array_0->IsNull(i)) {
-  while (left_it->hasnext() && left_it->value() < typed_array_0->GetView(i)) {
+  while (left_it->hasnext() && left_it->value() < right_content) {
     left_it->next();
   }
   
@@ -677,7 +686,7 @@ class ConditionedJoinArraysKernel::Impl {
       left_it->next();
   }
   left_it->setpos(cur_idx, seg_len, pl);
-  //if (left_it->value() > typed_array_0->GetView(i) && left_it->hasnext() ) {
+  //if (left_it->value() > right_content && left_it->hasnext() ) {
   //  continue;
   //
   //      }
@@ -754,7 +763,7 @@ class ConditionedJoinArraysKernel::Impl {
         return GetAntiJoin(cond_check, left_shuffle_index_list, right_shuffle_index_list);
       } break;
       case 3: { /*Semi Join*/
-        return GetSemiJoin(cond_check, left_shuffle_index_list, right_shuffle_index_list);
+        return GetSemiJoin(cond_check, left_shuffle_index_list, right_shuffle_index_list, right_key_index_list);
       } break;
       case 4: { /*Existence Join*/
         return GetExistenceJoin(cond_check, left_shuffle_index_list,
