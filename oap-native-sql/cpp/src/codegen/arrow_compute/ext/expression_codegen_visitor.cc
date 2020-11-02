@@ -166,7 +166,13 @@ arrow::Status ExpressionCodegenVisitor::Visit(const gandiva::FunctionNode& node)
     for (int i = 0; i < 3; i++) {
       prepare_str_ += child_visitor_list[i]->GetPrepare();
     }
-    codes_str_ = ss.str();
+    // codes_str_ = ss.str();
+    codes_str_ = "substr_" + std::to_string(cur_func_id);
+    check_str_ = GetValidityName(codes_str_);
+    std::stringstream prepare_ss;
+    prepare_ss << "auto " << codes_str_ << " = " << ss.str() << ";" << std::endl;
+    prepare_ss << "bool " << check_str_ << " = true;" << std::endl;
+    prepare_str_ += prepare_ss.str();
   } else if (func_name.compare("upper") == 0) {
     std::stringstream prepare_ss;
     auto child_name = child_visitor_list[0]->GetResult();
