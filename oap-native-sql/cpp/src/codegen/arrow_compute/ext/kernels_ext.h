@@ -527,6 +527,30 @@ class HashRelationKernel : public KernalBase {
   std::unique_ptr<Impl> impl_;
   arrow::compute::FunctionContext* ctx_;
 };
+class ConcatArrayListKernel : public KernalBase {
+ public:
+  static arrow::Status Make(
+      arrow::compute::FunctionContext* ctx,
+      const std::vector<std::shared_ptr<arrow::Field>>& input_field_list,
+      std::shared_ptr<gandiva::Node> root_node,
+      const std::vector<std::shared_ptr<arrow::Field>>& output_field_list,
+      std::shared_ptr<KernalBase>* out);
+  ConcatArrayListKernel(
+      arrow::compute::FunctionContext* ctx,
+      const std::vector<std::shared_ptr<arrow::Field>>& input_field_list,
+      std::shared_ptr<gandiva::Node> root_node,
+      const std::vector<std::shared_ptr<arrow::Field>>& output_field_list);
+  arrow::Status Evaluate(const ArrayList& in) override;
+  arrow::Status MakeResultIterator(
+      std::shared_ptr<arrow::Schema> schema,
+      std::shared_ptr<ResultIterator<arrow::RecordBatch>>* out) override;
+
+  class Impl;
+
+ private:
+  std::unique_ptr<Impl> impl_;
+  arrow::compute::FunctionContext* ctx_;
+};
 class ConditionedProbeKernel : public KernalBase {
  public:
   static arrow::Status Make(arrow::compute::FunctionContext* ctx,
