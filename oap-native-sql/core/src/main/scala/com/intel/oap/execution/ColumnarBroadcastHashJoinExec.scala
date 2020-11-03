@@ -37,7 +37,7 @@ import org.apache.spark.sql.execution.metric.SQLMetrics
 import scala.collection.JavaConverters._
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.catalyst.expressions.BoundReference
-import org.apache.spark.sql.catalyst.expressions.BindReferences.bindReference
+import org.apache.spark.sql.catalyst.expressions.BindReferences._
 import org.apache.spark.sql.util.ArrowUtils
 import org.apache.spark.sql.vectorized.{ColumnarBatch, ColumnVector}
 
@@ -84,12 +84,18 @@ case class ColumnarBroadcastHashJoinExec(
     "joinTime" -> SQLMetrics.createTimingMetric(sparkContext, "join time"),
     "fetchTime" -> SQLMetrics.createTimingMetric(sparkContext, "broadcast result fetch time"))
 
-  val (buildKeyExprs, streamedKeyExprs) = buildSide match {
-    case BuildLeft =>
-      (leftKeys, rightKeys)
-    case _ =>
-      (rightKeys, leftKeys)
+  val (buildKeyExprs, streamedKeyExprs) = {
+    require(
+      leftKeys.map(_.dataType) == rightKeys.map(_.dataType),
+      "Join keys from two sides should have same types")
+    val lkeys = HashJoin.rewriteKeyExpr(leftKeys)
+    val rkeys = HashJoin.rewriteKeyExpr(rightKeys)
+    buildSide match {
+      case BuildLeft => (lkeys, rkeys)
+      case BuildRight => (rkeys, lkeys)
+    }
   }
+
   override def output: Seq[Attribute] =
     if (projectList == null) super.output else projectList.map(_.toAttribute)
   def getBuildPlan: SparkPlan = buildPlan

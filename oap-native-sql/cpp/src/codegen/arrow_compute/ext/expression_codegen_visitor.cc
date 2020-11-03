@@ -449,6 +449,86 @@ arrow::Status ExpressionCodegenVisitor::Visit(const gandiva::FunctionNode& node)
     }
     prepare_str_ += prepare_ss.str();
     check_str_ = validity;
+  } else if (func_name.compare("shift_left") == 0) {
+    codes_str_ = "shift_left_" + std::to_string(cur_func_id);
+    auto validity = codes_str_ + "_validity";
+    std::stringstream prepare_ss;
+    prepare_ss << GetCTypeString(node.return_type()) << " " << codes_str_ << ";"
+               << std::endl;
+    prepare_ss << "bool " << validity << " = ("
+               << CombineValidity({child_visitor_list[0]->GetPreCheck(),
+                                   child_visitor_list[1]->GetPreCheck()})
+               << ");" << std::endl;
+    prepare_ss << "if (" << validity << ") {" << std::endl;
+    prepare_ss << codes_str_ << " = " << child_visitor_list[0]->GetResult() << " << "
+               << child_visitor_list[1]->GetResult() << ";" << std::endl;
+    prepare_ss << "}" << std::endl;
+
+    for (int i = 0; i < 2; i++) {
+      prepare_str_ += child_visitor_list[i]->GetPrepare();
+    }
+    prepare_str_ += prepare_ss.str();
+    check_str_ = validity;
+  } else if (func_name.compare("shift_right") == 0) {
+    codes_str_ = "shift_right_" + std::to_string(cur_func_id);
+    auto validity = codes_str_ + "_validity";
+    std::stringstream prepare_ss;
+    prepare_ss << GetCTypeString(node.return_type()) << " " << codes_str_ << ";"
+               << std::endl;
+    prepare_ss << "bool " << validity << " = ("
+               << CombineValidity({child_visitor_list[0]->GetPreCheck(),
+                                   child_visitor_list[1]->GetPreCheck()})
+               << ");" << std::endl;
+    prepare_ss << "if (" << validity << ") {" << std::endl;
+    prepare_ss << codes_str_ << " = " << child_visitor_list[0]->GetResult() << " >> "
+               << child_visitor_list[1]->GetResult() << ";" << std::endl;
+    prepare_ss << "}" << std::endl;
+
+    for (int i = 0; i < 2; i++) {
+      prepare_str_ += child_visitor_list[i]->GetPrepare();
+    }
+    prepare_str_ += prepare_ss.str();
+    check_str_ = validity;
+  } else if (func_name.compare("bitwise_and") == 0) {
+    codes_str_ = "bitwise_and_" + std::to_string(cur_func_id);
+    auto validity = codes_str_ + "_validity";
+    std::stringstream prepare_ss;
+    prepare_ss << GetCTypeString(node.return_type()) << " " << codes_str_ << ";"
+               << std::endl;
+    prepare_ss << "bool " << validity << " = ("
+               << CombineValidity({child_visitor_list[0]->GetPreCheck(),
+                                   child_visitor_list[1]->GetPreCheck()})
+               << ");" << std::endl;
+    prepare_ss << "if (" << validity << ") {" << std::endl;
+    prepare_ss << codes_str_ << " = " << child_visitor_list[0]->GetResult() << " & "
+               << child_visitor_list[1]->GetResult() << ";" << std::endl;
+    prepare_ss << "}" << std::endl;
+
+    for (int i = 0; i < 2; i++) {
+      prepare_str_ += child_visitor_list[i]->GetPrepare();
+    }
+    prepare_str_ += prepare_ss.str();
+    check_str_ = validity;
+  } else if (func_name.compare("bitwise_or") == 0) {
+    codes_str_ = "bitwise_or_" + std::to_string(cur_func_id);
+    auto validity = codes_str_ + "_validity";
+    std::stringstream prepare_ss;
+    prepare_ss << GetCTypeString(node.return_type()) << " " << codes_str_ << ";"
+               << std::endl;
+    prepare_ss << "bool " << validity << " = ("
+               << CombineValidity({child_visitor_list[0]->GetPreCheck(),
+                                   child_visitor_list[1]->GetPreCheck()})
+               << ");" << std::endl;
+    prepare_ss << "if (" << validity << ") {" << std::endl;
+    prepare_ss << codes_str_ << " = " << child_visitor_list[0]->GetResult() << " | "
+               << child_visitor_list[1]->GetResult() << ";" << std::endl;
+    prepare_ss << "}" << std::endl;
+
+    for (int i = 0; i < 2; i++) {
+      prepare_str_ += child_visitor_list[i]->GetPrepare();
+    }
+    prepare_str_ += prepare_ss.str();
+    check_str_ = validity;
   } else {
     return arrow::Status::NotImplemented(func_name, " is currently not supported.");
   }

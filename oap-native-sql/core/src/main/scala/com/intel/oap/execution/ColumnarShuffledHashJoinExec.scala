@@ -77,12 +77,18 @@ case class ColumnarShuffledHashJoinExec(
     "buildTime" -> SQLMetrics.createTimingMetric(sparkContext, "time to build hash map"),
     "joinTime" -> SQLMetrics.createTimingMetric(sparkContext, "join time"))
 
-  val (buildKeyExprs, streamedKeyExprs) = buildSide match {
-    case BuildLeft =>
-      (leftKeys, rightKeys)
-    case _ =>
-      (rightKeys, leftKeys)
+  val (buildKeyExprs, streamedKeyExprs) = {
+    require(
+      leftKeys.map(_.dataType) == rightKeys.map(_.dataType),
+      "Join keys from two sides should have same types")
+    val lkeys = HashJoin.rewriteKeyExpr(leftKeys)
+    val rkeys = HashJoin.rewriteKeyExpr(rightKeys)
+    buildSide match {
+      case BuildLeft => (lkeys, rkeys)
+      case BuildRight => (rkeys, lkeys)
+    }
   }
+
   override def output: Seq[Attribute] =
     if (projectList == null) super.output else projectList.map(_.toAttribute)
 
@@ -267,8 +273,8 @@ case class ColumnarShuffledHashJoinExec(
         }
       }
       SparkMemoryUtils.addLeakSafeTaskCompletionListener[Unit](_ => {
-          close
-        })
+        close
+      })
       new CloseableColumnBatchIterator(res)
     }
   }
@@ -364,8 +370,8 @@ case class ColumnarShuffledHashJoinExec(
           numOutputRows,
           sparkConf)
         SparkMemoryUtils.addLeakSafeTaskCompletionListener[Unit](_ => {
-            vjoin.close()
-          })
+          vjoin.close()
+        })
         val vjoinResult = vjoin.columnarJoin(streamIter, buildIter)
         new CloseableColumnBatchIterator(vjoinResult)
     }
