@@ -520,8 +520,14 @@ class ConditionedJoinArraysKernel::Impl {
 
     std::string right_value;
     if (right_key_index_list.size() > 1) {
-      // TODO: fix key size
-      right_value = "item_content{typed_array_0->GetView(i), typed_array_1->GetView(i)}";
+      right_value += "item_content{";
+      for (auto i = 0; i < right_key_index_list.size(); i++) {
+        right_value += "typed_array_" + std::to_string(i) + "->GetView(i)";
+        if (i != right_key_index_list.size() -1) {
+          right_value += ",";
+        }
+      }
+      right_value += "}";
     } else {
       right_value = "typed_array_0->GetView(i)";
     }
@@ -963,6 +969,9 @@ class ConditionedJoinArraysKernel::Impl {
         GetTypeString(left_field_list[left_key_index_list[0]]->type(), "Array");
     std::string item_content_str =
         GetCTypeString(left_field_list[left_key_index_list[0]]->type());
+    if (item_content_str == "std::string") {
+      item_content_str = "nonstd::sv_lite::string_view";
+    }
     list_tiem_str = R"(
 typedef  std::shared_ptr<)" + hash_map_type_str +
                     R"(> list_item;
