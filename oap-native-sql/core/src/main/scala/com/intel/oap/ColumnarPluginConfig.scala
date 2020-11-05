@@ -21,13 +21,13 @@ import org.apache.spark.SparkConf
 
 class ColumnarPluginConfig(conf: SparkConf) {
   val enableColumnarSort: Boolean =
-    conf.getBoolean("spark.sql.columnar.sort", defaultValue = false)
+    conf.getBoolean("spark.oap.sql.columnar.sort", defaultValue = false)
   val enableCodegenHashAggregate: Boolean =
-    conf.getBoolean("spark.sql.columnar.codegen.hashAggregate", defaultValue = false)
+    conf.getBoolean("spark.oap.sql.columnar.codegen.hashAggregate", defaultValue = false)
   val enableColumnarBroadcastJoin: Boolean =
-    conf.getBoolean("spark.sql.columnar.sort.broadcastJoin", defaultValue = true)
+    conf.getBoolean("spark.oap.sql.columnar.broadcastJoin", defaultValue = true)
   val enableColumnarWindow: Boolean =
-    conf.getBoolean("spark.sql.columnar.window", defaultValue = true)
+    conf.getBoolean("spark.oap.sql.columnar.window", defaultValue = true)
   val enableColumnarSortMergeJoin: Boolean =
     conf.getBoolean("spark.oap.sql.columnar.sortmergejoin", defaultValue = false)
   val enablePreferColumnar: Boolean =
@@ -44,7 +44,7 @@ class ColumnarPluginConfig(conf: SparkConf) {
   val batchSize: Int =
     conf.getInt("spark.sql.execution.arrow.maxRecordsPerBatch", defaultValue = 10000)
   val tmpFile: String =
-    conf.getOption("spark.sql.columnar.tmp_dir").getOrElse(null)
+    conf.getOption("spark.oap.sql.columnar.tmp_dir").getOrElse(null)
 }
 
 object ColumnarPluginConfig {
