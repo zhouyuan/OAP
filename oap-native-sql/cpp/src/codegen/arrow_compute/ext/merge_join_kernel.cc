@@ -1161,12 +1161,15 @@ private:
             )" +
            result_iter_set_str + result_iter_prepare_str + R"(
 
-            left_it = new FVector(left_list_, *idx_to_arrarid_);
+            left_it = std::make_shared<FVector>(left_list_, *idx_to_arrarid_);
     }
+    //~ProberResultIterator() {
+    //  delete left_it;
+    //}
 
     std::string ToString() override { return "ProberResultIterator"; }
 
-    ArrayItemIndex GetArrayItemIdex(FVector* left_it) {
+    ArrayItemIndex GetArrayItemIdex(std::shared_ptr<FVector> left_it) {
       int64_t local_arrayid, local_seglen, local_pl;
       left_it->getpos(&local_arrayid, &local_seglen, &local_pl);
       return ArrayItemIndex(local_arrayid, local_seglen);
@@ -1201,7 +1204,7 @@ private:
     arrow::compute::FunctionContext *ctx_;
     std::shared_ptr<arrow::Schema> result_schema_;
     std::vector<list_item>* left_list_;
-    FVector* left_it;
+    std::shared_ptr<FVector> left_it;
     int64_t last_pos;
     int64_t last_idx = 0;
     int64_t last_seg = 0;
