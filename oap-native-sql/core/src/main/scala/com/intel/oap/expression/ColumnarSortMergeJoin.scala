@@ -138,7 +138,6 @@ class ColumnarSortMergeJoin(
         if (realstreamIter.hasNext) {
           true
         } else {
-          inputBatchHolder.foreach(cb => cb.close())
           false
         }
       }
@@ -168,6 +167,7 @@ class ColumnarSortMergeJoin(
   }
 
   def close(): Unit = {
+    inputBatchHolder.foreach(cb => cb.close())
     if (prober != null) {
       prober.close()
     }
