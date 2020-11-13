@@ -18,6 +18,7 @@
 package com.intel.oap.execution
 
 import com.intel.oap.vectorized.ArrowWritableColumnVector
+import com.intel.oap.vectorized.CloseableColumnBatchIterator
 import org.apache.arrow.vector.util.VectorBatchAppender
 import org.apache.spark.TaskContext
 import org.apache.spark.rdd.RDD
@@ -67,7 +68,7 @@ case class CoalesceBatchesExec(child: SparkPlan) extends UnaryExecNode {
       val beforeInput = System.nanoTime
       val hasInput = iter.hasNext
       collectTime += System.nanoTime - beforeInput
-      if (hasInput) {
+      val res = if (hasInput) {
         new Iterator[ColumnarBatch] {
           var target: ColumnarBatch = _
           var numBatchesTotal: Long = _
@@ -105,7 +106,7 @@ case class CoalesceBatchesExec(child: SparkPlan) extends UnaryExecNode {
             val batchesToAppend = ListBuffer[ColumnarBatch]()
 
             target = iter.next()
-            target.retain()
+            //target.retain()
             rowCount += target.numRows
 
             while (hasNext && rowCount < recordsPerBatch) {
@@ -136,6 +137,8 @@ case class CoalesceBatchesExec(child: SparkPlan) extends UnaryExecNode {
       } else {
         Iterator.empty
       }
+      //new CloseableColumnBatchIterator(res)
+      res
     }
   }
 }
