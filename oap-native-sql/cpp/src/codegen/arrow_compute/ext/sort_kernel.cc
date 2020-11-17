@@ -713,6 +713,10 @@ class SortInplaceKernel : public SortArraysToIndicesKernel::Impl {
                     std::vector<bool> nulls_order)
       : ctx_(ctx), nulls_first_(nulls_order[0]), asc_(sort_directions[0]),
         result_schema_(result_schema), key_projector_(key_projector) {}
+  ~SortInplaceKernel() {
+     std::cout << "desc SortInplaceKernel" << std::endl;
+     std::cout << "concatenated_array_: " <<concatenated_array_.use_count() << std::endl;
+}
 
   arrow::Status Evaluate(const ArrayList& in) override {
     num_batches_++;
@@ -745,6 +749,7 @@ class SortInplaceKernel : public SortArraysToIndicesKernel::Impl {
     auto valid_indices_begin = indices_begin;
     auto valid_indices_end = indices_end;
     if (nulls_total_ > 0) {
+       std::cout << "null " << std::endl;
       // we use arrow sort for this scenario
       // the indices_out of arrow sort is nulls_last
       std::shared_ptr<arrow::Array> indices_out;
@@ -794,6 +799,10 @@ class SortInplaceKernel : public SortArraysToIndicesKernel::Impl {
       builder_0_.reset(
           arrow::internal::checked_cast<BuilderType_0*>(builder_0.release()));
       batch_size_ = GetBatchSize();
+    }
+    ~SorterResultIterator() {
+      std::cout << "desc SorterResultIterator" << std::endl;
+      std::cout << "result_arr_: " << result_arr_.use_count() << std::endl;
     }
 
     std::string ToString() override { return "SortArraysToIndicesResultIterator"; }
