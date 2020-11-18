@@ -454,6 +454,12 @@ Use below command to remove original initialization of one PMem, this is a
 pmempool rm ${device_name}
 #example: pmempool rm /dev/dax0.0
 ```
+If you install [OAP Conda package](https://anaconda.org/intel/oap), you can use below command to  remove original initialization of one PMem.
+```shell script
+export LD_LIBRARY_PATH=$HOME/miniconda2/envs/oapenv/lib/:$LD_LIBRARY_PATH
+$HOME/miniconda2/envs/oapenv/bin/pmempool rm ${device_name}
+```
+
 
 **Refer to the Reference section for detail descrption of each parameter.** 
 
