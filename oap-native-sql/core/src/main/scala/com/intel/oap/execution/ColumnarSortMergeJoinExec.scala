@@ -82,6 +82,7 @@ class ColumnarSortMergeJoinExec(
 
   override def supportsColumnar = true
   override def supportCodegen: Boolean = false
+  val triggerBuildSignature = getCodeGenSignature
 
   def getCodeGenSignature =
     if (resultSchema.size > 0 && !leftKeys
@@ -89,24 +90,27 @@ class ColumnarSortMergeJoinExec(
           .isEmpty && !rightKeys
           .filter(expr => bindReference(expr, right.output, true).isInstanceOf[BoundReference])
           .isEmpty) {
-
-      ColumnarSortMergeJoin.prebuild(
-        leftKeys,
-        rightKeys,
-        resultSchema,
-        joinType,
-        condition,
-        left,
-        right,
-        joinTime,
-        prepareTime,
-        totaltime_sortmegejoin,
-        numOutputRows,
-        sparkConf)
+      try {
+        ColumnarSortMergeJoin.prebuild(
+          leftKeys,
+          rightKeys,
+          resultSchema,
+          joinType,
+          condition,
+          left,
+          right,
+          joinTime,
+          prepareTime,
+          totaltime_sortmegejoin,
+          numOutputRows,
+          sparkConf)
+      } catch {
+        case e: Throwable =>
+          throw e
+      }
     } else {
       ""
     }
-
 
 
   def uploadAndListJars(signature: String): Seq[String] =
