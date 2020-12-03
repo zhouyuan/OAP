@@ -20,29 +20,37 @@ package com.intel.oap
 import org.apache.spark.SparkConf
 
 class ColumnarPluginConfig(conf: SparkConf) {
+
+  def getCpu():Boolean = {
+    val source = scala.io.Source.fromFile("/proc/cpuinfo")
+    val lines = try source.mkString finally source.close()
+    lines.contains("GenuineIntel")
+  }
+
+  val enableCpu = getCpu()
   val enableColumnarSort: Boolean =
-    conf.getBoolean("spark.sql.columnar.sort", defaultValue = false)
+    conf.getBoolean("spark.sql.columnar.sort", defaultValue = false) && enableCpu
   val enableColumnarSortNaNCheck: Boolean =
-    conf.getBoolean("spark.sql.columnar.sort.NaNCheck", defaultValue = false)
+    conf.getBoolean("spark.sql.columnar.sort.NaNCheck", defaultValue = false) && enableCpu
   val enableCodegenHashAggregate: Boolean =
-    conf.getBoolean("spark.sql.columnar.codegen.hashAggregate", defaultValue = false)
+    conf.getBoolean("spark.sql.columnar.codegen.hashAggregate", defaultValue = false)  && enableCpu
   val enableColumnarBroadcastJoin: Boolean =
-    conf.getBoolean("spark.sql.columnar.sort.broadcastJoin", defaultValue = true)
+    conf.getBoolean("spark.sql.columnar.sort.broadcastJoin", defaultValue = true)  && enableCpu
   val enableColumnarWindow: Boolean =
-    conf.getBoolean("spark.sql.columnar.window", defaultValue = true)
+    conf.getBoolean("spark.sql.columnar.window", defaultValue = true)  && enableCpu
   val enableColumnarSortMergeJoin: Boolean =
-    conf.getBoolean("spark.oap.sql.columnar.sortmergejoin", defaultValue = false)
+    conf.getBoolean("spark.oap.sql.columnar.sortmergejoin", defaultValue = false)  && enableCpu
   val enablePreferColumnar: Boolean =
-    conf.getBoolean("spark.oap.sql.columnar.preferColumnar", defaultValue = false)
+    conf.getBoolean("spark.oap.sql.columnar.preferColumnar", defaultValue = false)  && enableCpu
   val enableJoinOptimizationReplace: Boolean =
-    conf.getBoolean("spark.oap.sql.columnar.joinOptimizationReplace", defaultValue = false)
+    conf.getBoolean("spark.oap.sql.columnar.joinOptimizationReplace", defaultValue = false)  && enableCpu
   val joinOptimizationThrottle: Integer =
     conf.getInt("spark.oap.sql.columnar.joinOptimizationLevel", defaultValue = 6)
   val enableColumnarWholeStageCodegen: Boolean =
-    conf.getBoolean("spark.oap.sql.columnar.wholestagecodegen", defaultValue = true)
+    conf.getBoolean("spark.oap.sql.columnar.wholestagecodegen", defaultValue = true)  && enableCpu
   val enableColumnarShuffle: Boolean = conf
     .get("spark.shuffle.manager", "sort")
-    .equals("org.apache.spark.shuffle.sort.ColumnarShuffleManager")
+    .equals("org.apache.spark.shuffle.sort.ColumnarShuffleManager")  && enableCpu
   val batchSize: Int =
     conf.getInt("spark.sql.execution.arrow.maxRecordsPerBatch", defaultValue = 10000)
   val tmpFile: String =
@@ -50,7 +58,7 @@ class ColumnarPluginConfig(conf: SparkConf) {
   val broadcastCacheTimeout: Int =
     conf.getInt("spark.sql.columnar.sort.broadcast.cache.timeout", defaultValue = -1)
   val hashCompare: Boolean =
-    conf.getBoolean("spark.oap.sql.columnar.hashCompare", defaultValue = false)
+    conf.getBoolean("spark.oap.sql.columnar.hashCompare", defaultValue = false)  && enableCpu
 }
 
 object ColumnarPluginConfig {
