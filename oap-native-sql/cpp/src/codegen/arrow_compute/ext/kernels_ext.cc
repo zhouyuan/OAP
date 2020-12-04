@@ -846,7 +846,7 @@ class StddevSampPartialArrayKernel::Impl {
 
     if (data_type == nullptr)
       return arrow::Status::Invalid("Datum must be array-like");
-    else if (!is_integer(data_type->id()) && !is_floating(data_type->id()))
+    else if (data_type && !is_integer(data_type->id()) && !is_floating(data_type->id()))
       return arrow::Status::Invalid("Datum must contain a NumericType");
     switch (data_type_->id()) {
 #define PROCESS(DataType)                                  \

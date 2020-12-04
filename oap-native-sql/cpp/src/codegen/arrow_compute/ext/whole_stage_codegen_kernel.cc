@@ -202,8 +202,8 @@ class WholeStageCodeGenKernel::Impl {
       // process
       try {
         // compile codes
-        RETURN_NOT_OK(CompileCodes(codes, signature_));
-        RETURN_NOT_OK(LoadLibrary(signature_, ctx_, out));
+        arrow::Status s = CompileCodes(codes, signature_);
+        s = LoadLibrary(signature_, ctx_, out);
       } catch (const std::runtime_error& error) {
         FileSpinUnLock(file_lock);
         throw error;

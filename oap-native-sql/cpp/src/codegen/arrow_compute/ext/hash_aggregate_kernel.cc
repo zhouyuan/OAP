@@ -60,7 +60,7 @@ class HashAggregateKernel::Impl {
       THROW_NOT_OK(LoadJITFunction());
     }
   }
-  virtual arrow::Status LoadJITFunction() {
+  arrow::Status LoadJITFunction() {
     // generate ddl signature
     std::stringstream func_args_ss;
     func_args_ss << "[HashAggregate]";
@@ -112,7 +112,7 @@ class HashAggregateKernel::Impl {
     return arrow::Status::OK();
   }
 
-  virtual arrow::Status Evaluate(const ArrayList& in) {
+  arrow::Status Evaluate(const ArrayList& in) {
     if (projector_) {
       auto length = in.size() > 0 ? in[0]->length() : 0;
       arrow::ArrayVector outputs;
@@ -126,14 +126,14 @@ class HashAggregateKernel::Impl {
     return arrow::Status::OK();
   }
 
-  virtual arrow::Status MakeResultIterator(
+  arrow::Status MakeResultIterator(
       std::shared_ptr<arrow::Schema> schema,
       std::shared_ptr<ResultIterator<arrow::RecordBatch>>* out) {
     RETURN_NOT_OK(hash_aggregater_->MakeResultIterator(schema, out));
     return arrow::Status::OK();
   }
 
-  virtual arrow::Status Finish(std::shared_ptr<arrow::Array>* out) {
+  arrow::Status Finish(std::shared_ptr<arrow::Array>* out) {
     return arrow::Status::OK();
   }
 
@@ -193,7 +193,7 @@ class HashAggregateKernel::Impl {
     return arrow::Status::OK();
   }
 
-  virtual std::string ProduceCodes() {
+  std::string ProduceCodes() {
     int indice = 0;
 
     std::vector<std::string> cached_list;
