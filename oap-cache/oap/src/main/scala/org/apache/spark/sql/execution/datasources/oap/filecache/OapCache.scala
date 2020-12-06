@@ -19,6 +19,8 @@ package org.apache.spark.sql.execution.datasources.oap.filecache
 
 import java.io.File
 import java.nio.{ByteBuffer, DirectByteBuffer}
+import java.util
+import java.util.Collections
 import java.util.concurrent.{ConcurrentHashMap, Executors, LinkedBlockingQueue}
 import java.util.concurrent.atomic.{AtomicInteger, AtomicLong}
 import java.util.concurrent.locks.{Condition, ReentrantLock}
@@ -982,7 +984,7 @@ class ExternalCache(fiberType: FiberType) extends OapCache with Logging {
   private def emptyDataFiber(fiberLength: Long): FiberCache =
     OapRuntime.getOrCreate.fiberCacheManager.getEmptyDataFiberCache(fiberLength)
 
-  var fiberSet = scala.collection.mutable.Set[FiberId]()
+  var fiberSet = Collections.synchronizedSet(new util.HashSet[FiberId]())
   val cacheReadOnlyEnable =
    if (conf.getOption(OapConf.OAP_EXTERNAL_CACHE_READ_ONLY_ENABLED.key).isDefined) {
      conf.get(OapConf.OAP_EXTERNAL_CACHE_READ_ONLY_ENABLED)
@@ -1116,9 +1118,12 @@ class ExternalCache(fiberType: FiberType) extends OapCache with Logging {
       plasmaClientPool(clientRoundRobin.getAndAdd(1) % clientPoolSize).list().asScala.toSet
     cacheTotalCount = new AtomicLong(set.size)
     logDebug("cache total size is " + cacheTotalCount)
-    fiberSet.foreach( fiber =>
-      if ( !set.contains(hash(fiber.toFiberKey()))) fiberSet.remove(fiber) )
-    fiberSet.toSet
+    for (fiberId <- fiberSet.asScala) {
+      if (!set.contains(hash(fiberId.toFiberKey()))) {
+        fiberSet.remove(fiberId)
+      }
+    }
+    fiberSet.asScala.toSet
   }
 
   override def invalidate(fiber: FiberId): Unit = { }
