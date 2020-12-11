@@ -24,7 +24,7 @@ static constexpr uint8_t kBitmask[] = {1, 2, 4, 8, 16, 32, 64, 128};
  *
  */
 struct UnsafeRow {
-  int numFields;
+  int numFields = 0;
   char* data = nullptr;
   int cursor;
   UnsafeRow() {}

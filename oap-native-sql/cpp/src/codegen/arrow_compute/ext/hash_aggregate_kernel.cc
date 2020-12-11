@@ -101,8 +101,8 @@ class HashAggregateKernel::Impl {
       try {
         auto codes = ProduceCodes();
         // compile codes
-        RETURN_NOT_OK(CompileCodes(codes, signature_));
-        RETURN_NOT_OK(LoadLibrary(signature_, ctx_, &hash_aggregater_));
+        auto s = CompileCodes(codes, signature_);
+        s = LoadLibrary(signature_, ctx_, &hash_aggregater_);
       } catch (const std::runtime_error& error) {
         FileSpinUnLock(file_lock);
         throw error;

@@ -186,8 +186,8 @@ class SortArraysToIndicesKernel::Impl {
   // true for nulls_first, false for nulls_last
   std::vector<bool> nulls_order_;
   // keep the direction and nulls order for the first key
-  bool nulls_first_;
-  bool asc_;
+  bool nulls_first_ = true;
+  bool asc_ = true;
 
   class TypedSorterCodeGenImpl {
    public:

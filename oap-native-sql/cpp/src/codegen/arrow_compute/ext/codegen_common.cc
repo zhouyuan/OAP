@@ -536,7 +536,7 @@ arrow::Status CompileCodes(std::string codes, std::string signature) {
     std::cout << "compilation failed, see " << logfile << std::endl;
     std::cout << cmd << std::endl;
     cmd = "ls -R -l " + GetTempPath() + "; cat " + logfile;
-    system(cmd.c_str());
+    ret = system(cmd.c_str());
     exit(EXIT_FAILURE);
   }
   cmd = "cd " + outpath + "; jar -cf spark-columnar-plugin-codegen-precompile-" +

@@ -501,7 +501,7 @@ class WholeStageCodeGenKernel : public KernalBase {
 
  private:
   std::unique_ptr<Impl> impl_;
-  arrow::compute::FunctionContext* ctx_;
+  arrow::compute::FunctionContext* ctx_ = nullptr;
 };
 class HashRelationKernel : public KernalBase {
  public:
