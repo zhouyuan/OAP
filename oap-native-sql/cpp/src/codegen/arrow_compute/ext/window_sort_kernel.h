@@ -167,8 +167,8 @@ class WindowSortKernel::Impl {
       // process
       auto codes = ProduceCodes(result_schema);
       // compile codes
-      RETURN_NOT_OK(CompileCodes(codes, signature_));
-      RETURN_NOT_OK(LoadLibrary(signature_, ctx_, &sorter));
+      CompileCodes(codes, signature_);
+      LoadLibrary(signature_, ctx_, &sorter);
     }
     FileSpinUnLock(file_lock);
     return arrow::Status::OK();
@@ -191,10 +191,10 @@ class WindowSortKernel::Impl {
 
  protected:
   std::shared_ptr<CodeGenBase> sorter;
-  arrow::compute::FunctionContext* ctx_;
+  arrow::compute::FunctionContext* ctx_ = nullptr;
   std::string signature_;
-  bool nulls_first_;
-  bool asc_;
+  bool nulls_first_ = true;
+  bool asc_ = true;
   std::vector<int> key_index_list_;
   class TypedSorterCodeGenImpl {
    public:

@@ -708,8 +708,8 @@ TEST(TestArrowComputeWSCG, WSCGTestTwoStringInnerJoin) {
   std::vector<std::shared_ptr<RecordBatch>> expected_table;
   std::shared_ptr<arrow::RecordBatch> expected_result;
   std::vector<std::string> expected_result_string = {
-      R"([null, "b", "c", "f"])", R"(["A", "B", "C", "F"])", "[1, 2, 3, 6]",
-      R"([null, "b", "c", "f"])", R"(["A", "B", "C", "F"])"};
+      R"(["b", "c", "f"])", R"(["B", "C", "F"])", "[2, 3, 6]",
+      R"(["b", "c", "f"])", R"(["B", "C", "F"])"};
   MakeInputBatch(expected_result_string, schema_table, &expected_result);
   expected_table.push_back(expected_result);
 

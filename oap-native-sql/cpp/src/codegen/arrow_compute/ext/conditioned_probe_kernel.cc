@@ -320,7 +320,7 @@ class ConditionedProbeKernel::Impl {
 
  private:
   arrow::compute::FunctionContext* ctx_;
-  arrow::MemoryPool* pool_;
+  arrow::MemoryPool* pool_ = nullptr;
   std::string signature_;
   int join_type_;
 

@@ -88,7 +88,7 @@ class WholeStageCodeGenKernel::Impl {
     auto function_node = std::dynamic_pointer_cast<gandiva::FunctionNode>(node);
     auto func_name = function_node->descriptor()->name();
     if (func_name.compare(0, 22, "conditionedProbeArrays") == 0) {
-      int join_type;
+      int join_type = 0;
       gandiva::NodeVector left_schema_list;
       RETURN_NOT_OK(GetArguments(function_node, 0, &left_schema_list));
       gandiva::NodeVector right_schema_list;
@@ -202,8 +202,8 @@ class WholeStageCodeGenKernel::Impl {
       // process
       try {
         // compile codes
-        RETURN_NOT_OK(CompileCodes(codes, signature_));
-        RETURN_NOT_OK(LoadLibrary(signature_, ctx_, out));
+        arrow::Status s = CompileCodes(codes, signature_);
+        s = LoadLibrary(signature_, ctx_, out);
       } catch (const std::runtime_error& error) {
         FileSpinUnLock(file_lock);
         throw error;

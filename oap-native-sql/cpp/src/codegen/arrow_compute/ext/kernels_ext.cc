@@ -846,7 +846,7 @@ class StddevSampPartialArrayKernel::Impl {
 
     if (data_type == nullptr)
       return arrow::Status::Invalid("Datum must be array-like");
-    else if (!is_integer(data_type->id()) && !is_floating(data_type->id()))
+    else if (data_type && !is_integer(data_type->id()) && !is_floating(data_type->id()))
       return arrow::Status::Invalid("Datum must contain a NumericType");
     switch (data_type_->id()) {
 #define PROCESS(DataType)                                  \
@@ -1063,7 +1063,7 @@ class StddevSampFinalArrayKernel::Impl {
     auto cnt_data_type = cnt_value.type();
     if (cnt_data_type == nullptr)
       return arrow::Status::Invalid("Datum must be array-like");
-    else if (!is_integer(cnt_data_type->id()) && !is_floating(cnt_data_type->id()))
+    else if (cnt_data_type && !is_integer(cnt_data_type->id()) && !is_floating(cnt_data_type->id()))
       return arrow::Status::Invalid("Datum must contain a NumericType");
     RETURN_NOT_OK(getAvgM2(ctx, cnt_value, avg_value, m2_value, avg_out, m2_out));
     return arrow::Status::OK();
@@ -1134,7 +1134,7 @@ class StddevSampFinalArrayKernel::Impl {
   }
 
  private:
-  arrow::compute::FunctionContext* ctx_;
+  arrow::compute::FunctionContext* ctx_ = nullptr;
   std::shared_ptr<arrow::DataType> data_type_;
   std::shared_ptr<arrow::DataType> cnt_res_data_type_;
   std::vector<std::shared_ptr<arrow::Scalar>> cnt_scalar_list_;
@@ -1168,7 +1168,6 @@ arrow::Status StddevSampFinalArrayKernel::Finish(ArrayList* out) {
 ///////////////  EncodeArray  ////////////////
 class EncodeArrayKernel::Impl {
  public:
-  Impl() {}
   virtual ~Impl() {}
   virtual arrow::Status Evaluate(const std::shared_ptr<arrow::Array>& in,
                                  std::shared_ptr<arrow::Array>* out) = 0;

@@ -141,8 +141,8 @@ class SortArraysToIndicesKernel::Impl {
       // process
       auto codes = ProduceCodes(result_schema);
       // compile codes
-      RETURN_NOT_OK(CompileCodes(codes, signature_));
-      RETURN_NOT_OK(LoadLibrary(signature_, ctx_, &sorter));
+      CompileCodes(codes, signature_);
+      LoadLibrary(signature_, ctx_, &sorter);
     }
     FileSpinUnLock(file_lock);
     return arrow::Status::OK();
@@ -174,7 +174,7 @@ class SortArraysToIndicesKernel::Impl {
 
  protected:
   std::shared_ptr<CodeGenBase> sorter;
-  arrow::compute::FunctionContext* ctx_;
+  arrow::compute::FunctionContext* ctx_ = nullptr;
   std::string signature_;
   std::vector<int> key_index_list_;
   std::shared_ptr<arrow::Schema> result_schema_;
@@ -186,8 +186,8 @@ class SortArraysToIndicesKernel::Impl {
   // true for nulls_first, false for nulls_last
   std::vector<bool> nulls_order_;
   // keep the direction and nulls order for the first key
-  bool nulls_first_;
-  bool asc_;
+  bool nulls_first_ = true;
+  bool asc_ = true;
 
   class TypedSorterCodeGenImpl {
    public:
@@ -773,8 +773,8 @@ class SortInplaceKernel : public SortArraysToIndicesKernel::Impl {
   arrow::compute::FunctionContext* ctx_;
   std::shared_ptr<arrow::Schema> result_schema_;
   std::shared_ptr<gandiva::Projector> key_projector_;
-  bool nulls_first_;
-  bool asc_;
+  bool nulls_first_ = true;
+  bool asc_ = true;
   uint64_t num_batches_ = 0;
   uint64_t items_total_ = 0;
   uint64_t nulls_total_ = 0;
@@ -1013,8 +1013,8 @@ class SortOnekeyKernel<DATATYPE, CTYPE, enable_if_number<CTYPE>>
   arrow::compute::FunctionContext* ctx_;
   std::shared_ptr<arrow::Schema> result_schema_;
   std::shared_ptr<gandiva::Projector> key_projector_;
-  bool nulls_first_;
-  bool asc_;
+  bool nulls_first_ = true;
+  bool asc_ = true;
   std::vector<int64_t> length_list_;
   uint64_t num_batches_ = 0;
   uint64_t items_total_ = 0;
@@ -1237,8 +1237,8 @@ class SortOnekeyKernel<DATATYPE, CTYPE, enable_if_string<CTYPE>>
   arrow::compute::FunctionContext* ctx_;
   std::shared_ptr<arrow::Schema> result_schema_;
   std::shared_ptr<gandiva::Projector> key_projector_;
-  bool nulls_first_;
-  bool asc_;
+  bool nulls_first_ = true;
+  bool asc_ = true;
   std::vector<int64_t> length_list_;
   uint64_t num_batches_ = 0;
   uint64_t items_total_ = 0;

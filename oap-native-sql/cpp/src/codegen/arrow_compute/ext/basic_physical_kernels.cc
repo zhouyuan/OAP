@@ -215,7 +215,7 @@ class FilterKernel::Impl {
 
  private:
   arrow::compute::FunctionContext* ctx_;
-  arrow::MemoryPool* pool_;
+  arrow::MemoryPool* pool_ = nullptr;
   std::string signature_;
   gandiva::NodePtr condition_;
   gandiva::FieldVector input_field_list_;

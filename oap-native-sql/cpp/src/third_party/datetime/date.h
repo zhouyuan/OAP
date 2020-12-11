@@ -4549,7 +4549,7 @@ CONSTDATA year nanyear{-32768};
 template <class Duration>
 struct fields
 {
-    year_month_day        ymd{nanyear/0/0};
+    year_month_day        ymd{nanyear};
     weekday               wd{8u};
     hh_mm_ss<Duration>    tod{};
     bool                  has_tod = false;

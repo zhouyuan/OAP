@@ -262,8 +262,8 @@ class ConditionedProbeArraysKernel::Impl {
             left_shuffle_index_list, right_shuffle_index_list, left_field_list,
             right_field_list, result_schema_index_list, exist_index);
         // compile codes
-        RETURN_NOT_OK(CompileCodes(codes, signature_));
-        RETURN_NOT_OK(LoadLibrary(signature_, ctx_, out));
+        auto s = CompileCodes(codes, signature_);
+        s = LoadLibrary(signature_, ctx_, out);
       } catch (const std::runtime_error& error) {
         FileSpinUnLock(file_lock);
         throw error;

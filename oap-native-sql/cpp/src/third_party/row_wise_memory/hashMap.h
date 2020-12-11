@@ -121,14 +121,17 @@ static inline unsafeHashMap* createUnsafeHashMap(int initArrayCapacity,
                                                  int keySize = -1) {
   unsafeHashMap* hashMap =
       (unsafeHashMap*)nativeMalloc(sizeof(unsafeHashMap), MEMTYPE_HASHMAP);
+  assert(hashMap);
   uint8_t bytesInKeyArray = (keySize == -1) ? 8 : 8 + keySize;
   hashMap->bytesInKeyArray = bytesInKeyArray;
   hashMap->keyArray =
       (char*)nativeMalloc(initArrayCapacity * bytesInKeyArray, MEMTYPE_HASHMAP);
+  assert(hashMap->keyArray);
   hashMap->arrayCapacity = initArrayCapacity;
   memset(hashMap->keyArray, -1, initArrayCapacity * bytesInKeyArray);
 
   hashMap->bytesMap = (char*)nativeMalloc(initialHashCapacity, MEMTYPE_HASHMAP);
+  assert(hashMap->bytesMap);
   hashMap->mapSize = initialHashCapacity;
 
   hashMap->cursor = 0;
