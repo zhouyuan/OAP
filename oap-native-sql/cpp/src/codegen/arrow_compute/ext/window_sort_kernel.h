@@ -119,7 +119,7 @@ class ArrayAppender : public AppenderBase {
 ///////////////  SortArraysToIndices  ////////////////
 class WindowSortKernel::Impl {
  public:
-  Impl() {}
+  Impl() {this->ctx_ = nullptr;}
   Impl(arrow::compute::FunctionContext* ctx,
        std::vector<std::shared_ptr<arrow::Field>> key_field_list,
        std::shared_ptr<arrow::Schema> result_schema, bool nulls_first, bool asc)
@@ -167,8 +167,8 @@ class WindowSortKernel::Impl {
       // process
       auto codes = ProduceCodes(result_schema);
       // compile codes
-      RETURN_NOT_OK(CompileCodes(codes, signature_));
-      RETURN_NOT_OK(LoadLibrary(signature_, ctx_, &sorter));
+      CompileCodes(codes, signature_);
+      LoadLibrary(signature_, ctx_, &sorter);
     }
     FileSpinUnLock(file_lock);
     return arrow::Status::OK();
@@ -831,6 +831,7 @@ WindowSortKernel::WindowSortKernel(
     arrow::compute::FunctionContext* ctx,
     std::vector<std::shared_ptr<arrow::Field>> key_field_list,
     std::shared_ptr<arrow::Schema> result_schema, bool nulls_first, bool asc) {
+  this->ctx_ = nullptr;
   if (key_field_list.size() == 1) {
 #ifdef DEBUG
     std::cout << "UseSortOneKey" << std::endl;

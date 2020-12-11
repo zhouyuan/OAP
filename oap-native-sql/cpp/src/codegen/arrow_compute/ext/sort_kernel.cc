@@ -81,7 +81,7 @@ using enable_if_string = std::enable_if_t<std::is_same<CTYPE, std::string>::valu
 ///////////////  SortArraysToIndices  ////////////////
 class SortArraysToIndicesKernel::Impl {
  public:
-  Impl() {}
+  Impl() {this->ctx_ = nullptr;}
   Impl(arrow::compute::FunctionContext* ctx,
        std::shared_ptr<arrow::Schema> result_schema,
        std::shared_ptr<gandiva::Projector> key_projector,
@@ -141,8 +141,8 @@ class SortArraysToIndicesKernel::Impl {
       // process
       auto codes = ProduceCodes(result_schema);
       // compile codes
-      RETURN_NOT_OK(CompileCodes(codes, signature_));
-      RETURN_NOT_OK(LoadLibrary(signature_, ctx_, &sorter));
+      CompileCodes(codes, signature_);
+      LoadLibrary(signature_, ctx_, &sorter);
     }
     FileSpinUnLock(file_lock);
     return arrow::Status::OK();
@@ -1358,6 +1358,7 @@ SortArraysToIndicesKernel::SortArraysToIndicesKernel(
     std::vector<std::shared_ptr<arrow::Field>> key_field_list,
     std::vector<bool> sort_directions, 
     std::vector<bool> nulls_order) {
+  this->ctx_ = nullptr;    
   // sort_key_node may need to do projection
   bool pre_processed_key_ = false;
   gandiva::NodePtr key_project;

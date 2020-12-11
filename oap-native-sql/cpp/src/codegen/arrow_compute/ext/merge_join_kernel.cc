@@ -208,8 +208,8 @@ class ConditionedJoinArraysKernel::Impl {
             left_shuffle_index_list, right_shuffle_index_list, left_field_list,
             right_field_list, result_schema_index_list, exist_index);
         // compile codes
-        RETURN_NOT_OK(CompileCodes(codes, signature_));
-        RETURN_NOT_OK(LoadLibrary(signature_, ctx_, out));
+        CompileCodes(codes, signature_);
+        LoadLibrary(signature_, ctx_, out);
       } catch (const std::runtime_error& error) {
         FileSpinUnLock(file_lock);
         throw error;
@@ -1245,6 +1245,7 @@ ConditionedJoinArraysKernel::ConditionedJoinArraysKernel(
     const std::vector<std::shared_ptr<arrow::Field>>& left_field_list,
     const std::vector<std::shared_ptr<arrow::Field>>& right_field_list,
     const std::shared_ptr<arrow::Schema>& result_schema) {
+  this->ctx_ = nullptr;
   impl_.reset(new Impl(ctx, left_key_list, right_key_list, func_node, join_type,
                        left_field_list, right_field_list, result_schema));
   kernel_name_ = "ConditionedJoinArraysKernel";

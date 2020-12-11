@@ -255,6 +255,7 @@ arrow::Status SplitArrayListWithActionKernel::Make(
 SplitArrayListWithActionKernel::SplitArrayListWithActionKernel(
     arrow::compute::FunctionContext* ctx, std::vector<std::string> action_name_list,
     std::vector<std::shared_ptr<arrow::DataType>> type_list) {
+  this->ctx_ = nullptr;    
   impl_.reset(new Impl(ctx, action_name_list, type_list));
   kernel_name_ = "SplitArrayListWithActionKernel";
 }
@@ -395,6 +396,7 @@ arrow::Status SumArrayKernel::Make(arrow::compute::FunctionContext* ctx,
 
 SumArrayKernel::SumArrayKernel(arrow::compute::FunctionContext* ctx,
                                std::shared_ptr<arrow::DataType> data_type) {
+  this->ctx_ = nullptr;
   impl_.reset(new Impl(ctx, data_type));
   kernel_name_ = "SumArrayKernel";
 }
@@ -456,6 +458,7 @@ arrow::Status CountArrayKernel::Make(arrow::compute::FunctionContext* ctx,
 
 CountArrayKernel::CountArrayKernel(arrow::compute::FunctionContext* ctx,
                                    std::shared_ptr<arrow::DataType> data_type) {
+  this->ctx_ = nullptr;
   impl_.reset(new Impl(ctx, data_type));
   kernel_name_ = "CountArrayKernel";
 }
@@ -543,6 +546,7 @@ arrow::Status SumCountArrayKernel::Make(arrow::compute::FunctionContext* ctx,
 
 SumCountArrayKernel::SumCountArrayKernel(arrow::compute::FunctionContext* ctx,
                                          std::shared_ptr<arrow::DataType> data_type) {
+  this->ctx_ = nullptr;
   impl_.reset(new Impl(ctx, data_type));
   kernel_name_ = "SumCountArrayKernel";
 }
@@ -638,6 +642,7 @@ arrow::Status AvgByCountArrayKernel::Make(arrow::compute::FunctionContext* ctx,
 
 AvgByCountArrayKernel::AvgByCountArrayKernel(arrow::compute::FunctionContext* ctx,
                                              std::shared_ptr<arrow::DataType> data_type) {
+  this->ctx_ = nullptr;
   impl_.reset(new Impl(ctx, data_type));
   kernel_name_ = "AvgByCountArrayKernel";
 }
@@ -716,6 +721,7 @@ arrow::Status MinArrayKernel::Make(arrow::compute::FunctionContext* ctx,
 
 MinArrayKernel::MinArrayKernel(arrow::compute::FunctionContext* ctx,
                                std::shared_ptr<arrow::DataType> data_type) {
+  this->ctx_ = nullptr;
   impl_.reset(new Impl(ctx, data_type));
   kernel_name_ = "MinArrayKernel";
 }
@@ -794,6 +800,7 @@ arrow::Status MaxArrayKernel::Make(arrow::compute::FunctionContext* ctx,
 
 MaxArrayKernel::MaxArrayKernel(arrow::compute::FunctionContext* ctx,
                                std::shared_ptr<arrow::DataType> data_type) {
+  this->ctx_ = nullptr;
   impl_.reset(new Impl(ctx, data_type));
   kernel_name_ = "MaxArrayKernel";
 }
@@ -984,6 +991,7 @@ arrow::Status StddevSampPartialArrayKernel::Make(
 
 StddevSampPartialArrayKernel::StddevSampPartialArrayKernel(
     arrow::compute::FunctionContext* ctx, std::shared_ptr<arrow::DataType> data_type) {
+  this->ctx_ = nullptr;
   impl_.reset(new Impl(ctx, data_type));
   kernel_name_ = "StddevSampPartialArrayKernel";
 }
@@ -1151,6 +1159,7 @@ arrow::Status StddevSampFinalArrayKernel::Make(arrow::compute::FunctionContext* 
 
 StddevSampFinalArrayKernel::StddevSampFinalArrayKernel(
     arrow::compute::FunctionContext* ctx, std::shared_ptr<arrow::DataType> data_type) {
+  this->ctx_ = nullptr;
   impl_.reset(new Impl(ctx, data_type));
   kernel_name_ = "StddevSampFinalArrayKernel";
 }
@@ -1348,6 +1357,7 @@ arrow::Status HashArrayKernel::Make(
 HashArrayKernel::HashArrayKernel(
     arrow::compute::FunctionContext* ctx,
     std::vector<std::shared_ptr<arrow::DataType>> type_list) {
+  this->ctx_ = nullptr;
   impl_.reset(new Impl(ctx, type_list));
   kernel_name_ = "HashArrayKernel";
 }
@@ -1412,6 +1422,7 @@ arrow::Status ConcatArrayKernel::Make(
 ConcatArrayKernel::ConcatArrayKernel(
     arrow::compute::FunctionContext* ctx,
     std::vector<std::shared_ptr<arrow::DataType>> type_list) {
+  this->ctx_ = nullptr;
   impl_.reset(new Impl(ctx, type_list));
   kernel_name_ = "ConcatArrayKernel";
 }
@@ -1536,6 +1547,7 @@ ConcatArrayListKernel::ConcatArrayListKernel(
     const std::vector<std::shared_ptr<arrow::Field>>& input_field_list,
     std::shared_ptr<gandiva::Node> root_node,
     const std::vector<std::shared_ptr<arrow::Field>>& output_field_list) {
+  this->ctx_ = nullptr;    
   impl_.reset(new Impl(ctx, input_field_list, root_node, output_field_list));
   kernel_name_ = "ConcatArrayListKernel";
 }

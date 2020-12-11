@@ -465,6 +465,7 @@ WholeStageCodeGenKernel::WholeStageCodeGenKernel(
     const std::vector<std::shared_ptr<arrow::Field>>& input_field_list,
     std::shared_ptr<gandiva::Node> root_node,
     const std::vector<std::shared_ptr<arrow::Field>>& output_field_list) {
+  this->ctx_ = nullptr;    
   impl_.reset(new Impl(ctx, input_field_list, root_node, output_field_list));
   kernel_name_ = "WholeStageCodeGenKernel";
 }
