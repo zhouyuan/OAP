@@ -127,7 +127,6 @@ arrow::Status ProjectKernel::Make(arrow::compute::FunctionContext* ctx,
 ProjectKernel::ProjectKernel(arrow::compute::FunctionContext* ctx,
                              const gandiva::NodeVector& input_field_node_list,
                              const gandiva::NodeVector& project_list) {
-  this->ctx_ = nullptr;
   impl_.reset(new Impl(ctx, input_field_node_list, project_list));
   kernel_name_ = "ProjectKernel";
 }
@@ -216,7 +215,7 @@ class FilterKernel::Impl {
 
  private:
   arrow::compute::FunctionContext* ctx_;
-  arrow::MemoryPool* pool_;
+  arrow::MemoryPool* pool_ = nullptr;
   std::string signature_;
   gandiva::NodePtr condition_;
   gandiva::FieldVector input_field_list_;
@@ -233,7 +232,6 @@ arrow::Status FilterKernel::Make(arrow::compute::FunctionContext* ctx,
 FilterKernel::FilterKernel(arrow::compute::FunctionContext* ctx,
                            const gandiva::NodeVector& input_field_node_list,
                            const gandiva::NodePtr& condition) {
-  this->ctx_ = nullptr;
   impl_.reset(new Impl(ctx, input_field_node_list, condition));
   kernel_name_ = "FilterKernel";
 }

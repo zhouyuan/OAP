@@ -514,7 +514,6 @@ HashAggregateKernel::HashAggregateKernel(
     std::vector<std::shared_ptr<arrow::Field>> input_field_list,
     std::vector<std::shared_ptr<gandiva::Node>> action_list,
     std::shared_ptr<arrow::Schema> result_schema) {
-  this->ctx_ = nullptr;
   impl_.reset(new Impl(ctx, input_field_list, action_list, result_schema));
   kernel_name_ = "HashAggregateKernelKernel";
 }

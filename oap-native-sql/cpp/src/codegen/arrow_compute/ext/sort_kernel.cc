@@ -81,7 +81,7 @@ using enable_if_string = std::enable_if_t<std::is_same<CTYPE, std::string>::valu
 ///////////////  SortArraysToIndices  ////////////////
 class SortArraysToIndicesKernel::Impl {
  public:
-  Impl() {this->ctx_ = nullptr;}
+  Impl() {}
   Impl(arrow::compute::FunctionContext* ctx,
        std::shared_ptr<arrow::Schema> result_schema,
        std::shared_ptr<gandiva::Projector> key_projector,
@@ -174,7 +174,7 @@ class SortArraysToIndicesKernel::Impl {
 
  protected:
   std::shared_ptr<CodeGenBase> sorter;
-  arrow::compute::FunctionContext* ctx_;
+  arrow::compute::FunctionContext* ctx_ = nullptr;
   std::string signature_;
   std::vector<int> key_index_list_;
   std::shared_ptr<arrow::Schema> result_schema_;
@@ -773,8 +773,8 @@ class SortInplaceKernel : public SortArraysToIndicesKernel::Impl {
   arrow::compute::FunctionContext* ctx_;
   std::shared_ptr<arrow::Schema> result_schema_;
   std::shared_ptr<gandiva::Projector> key_projector_;
-  bool nulls_first_;
-  bool asc_;
+  bool nulls_first_ = true;
+  bool asc_ = true;
   uint64_t num_batches_ = 0;
   uint64_t items_total_ = 0;
   uint64_t nulls_total_ = 0;
@@ -1013,8 +1013,8 @@ class SortOnekeyKernel<DATATYPE, CTYPE, enable_if_number<CTYPE>>
   arrow::compute::FunctionContext* ctx_;
   std::shared_ptr<arrow::Schema> result_schema_;
   std::shared_ptr<gandiva::Projector> key_projector_;
-  bool nulls_first_;
-  bool asc_;
+  bool nulls_first_ = true;
+  bool asc_ = true;
   std::vector<int64_t> length_list_;
   uint64_t num_batches_ = 0;
   uint64_t items_total_ = 0;
@@ -1237,8 +1237,8 @@ class SortOnekeyKernel<DATATYPE, CTYPE, enable_if_string<CTYPE>>
   arrow::compute::FunctionContext* ctx_;
   std::shared_ptr<arrow::Schema> result_schema_;
   std::shared_ptr<gandiva::Projector> key_projector_;
-  bool nulls_first_;
-  bool asc_;
+  bool nulls_first_ = true;
+  bool asc_ = true;
   std::vector<int64_t> length_list_;
   uint64_t num_batches_ = 0;
   uint64_t items_total_ = 0;
@@ -1358,7 +1358,6 @@ SortArraysToIndicesKernel::SortArraysToIndicesKernel(
     std::vector<std::shared_ptr<arrow::Field>> key_field_list,
     std::vector<bool> sort_directions, 
     std::vector<bool> nulls_order) {
-  this->ctx_ = nullptr;    
   // sort_key_node may need to do projection
   bool pre_processed_key_ = false;
   gandiva::NodePtr key_project;

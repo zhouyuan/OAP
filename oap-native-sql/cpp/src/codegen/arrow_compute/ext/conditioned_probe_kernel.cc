@@ -320,7 +320,7 @@ class ConditionedProbeKernel::Impl {
 
  private:
   arrow::compute::FunctionContext* ctx_;
-  arrow::MemoryPool* pool_;
+  arrow::MemoryPool* pool_ = nullptr;
   std::string signature_;
   int join_type_;
 
@@ -1749,7 +1749,6 @@ ConditionedProbeKernel::ConditionedProbeKernel(
     const gandiva::NodeVector& right_schema_list, const gandiva::NodePtr& condition,
     int join_type, const gandiva::NodeVector& result_schema,
     const gandiva::NodeVector& hash_configuration_list, int hash_relation_idx) {
-  this->ctx_ = nullptr;
   impl_.reset(new Impl(ctx, left_key_list, right_key_list, left_schema_list,
                        right_schema_list, condition, join_type, result_schema,
                        hash_configuration_list, hash_relation_idx));

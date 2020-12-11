@@ -29,6 +29,7 @@ namespace codegen {
 class CodeGenerator {
  public:
   explicit CodeGenerator() = default;
+  virtual ~CodeGenerator() {}
   virtual arrow::Status getSchema(std::shared_ptr<arrow::Schema>* out) = 0;
   virtual arrow::Status getResSchema(std::shared_ptr<arrow::Schema>* out) = 0;
   virtual arrow::Status SetMember(const std::shared_ptr<arrow::RecordBatch>& ms) = 0;
