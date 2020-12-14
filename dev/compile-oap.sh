@@ -92,9 +92,9 @@ case $key in
     shift 1
     echo "Start to compile all modules of OAP ..."
     cd $OAP_HOME
-    export ONEAPI_ROOT=/opt/intel/inteloneapi
-    source /opt/intel/inteloneapi/daal/2021.1-beta07/env/vars.sh
-    source /opt/intel/inteloneapi/tbb/2021.1-beta07/env/vars.sh
+    export ONEAPI_ROOT=/opt/intel/oneapi
+    source /opt/intel/oneapi/dal/latest/env/vars.sh
+    source /opt/intel/oneapi/tbb/latest/env/vars.sh
     source /tmp/oneCCL/build/_install/env/setvars.sh
     mvn clean  -Ppersistent-memory -Pvmemcache -DskipTests package
     gather
@@ -114,9 +114,9 @@ case $key in
     ;;
     --oap-mllib )
     shift 1
-    export ONEAPI_ROOT=/opt/intel/inteloneapi
-    source /opt/intel/inteloneapi/daal/2021.1-beta07/env/vars.sh
-    source /opt/intel/inteloneapi/tbb/2021.1-beta07/env/vars.sh
+    export ONEAPI_ROOT=/opt/intel/oneapi
+    source /opt/intel/oneapi/dal/latest/env/vars.sh
+    source /opt/intel/oneapi/tbb/latest/env/vars.sh
     source /tmp/oneCCL/build/_install/env/setvars.sh
     mvn clean package -pl com.intel.oap:oap-mllib  -am -DskipTests
     exit 0
@@ -150,15 +150,15 @@ case $key in
     --oap-conda)
     shift 1
 
-    export ONEAPI_ROOT=/opt/intel/inteloneapi
+    export ONEAPI_ROOT=/opt/intel/oneapi
     mvn clean package -pl com.intel.oap:oap-cache -am -Ppersistent-memory -Pvmemcache -DskipTests
     mvn clean package -pl com.intel.oap:oap-remote-shuffle  -am -DskipTests
     mvn clean package -pl com.intel.oap:oap-spark -Ppersistent-memory  -am -DskipTests
     cd $OAP_HOME/oap-shuffle/RPMem-shuffle
     mvn clean package -DskipTests
     cd $OAP_HOME
-    source /opt/intel/inteloneapi/daal/2021.1-beta07/env/vars.sh
-    source /opt/intel/inteloneapi/tbb/2021.1-beta07/env/vars.sh
+    source /opt/intel/oneapi/dal/latest/env/vars.sh
+    source /opt/intel/oneapi/tbb/latest/env/vars.sh
     source /tmp/oneCCL/build/_install/env/setvars.sh
     mvn clean package -pl com.intel.oap:oap-mllib  -am -DskipTests
 
