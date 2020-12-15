@@ -825,20 +825,22 @@ class ConditionedJoinArraysKernel::Impl {
             left_it->next();
           }
           int64_t cur_idx, seg_len, pl; left_it->getpos(&cur_idx, &seg_len, &pl);
-          while(left_it->hasnext() && left_it->value() == right_content) {
-              auto tmp = GetArrayItemIdex(left_it);)" +
+          if(left_it->hasnext() && left_it->value() == right_content) {
+              )" +
            shuffle_str + R"(
-             left_it->next();
-             last_match_idx = i;
+            last_match_idx = i;
+            while (left_it->hasnext() && left_it->value() == right_content) {
+               left_it->next();
+            }
           }
           left_it->setpos(cur_idx, seg_len, pl);
-          if(left_it->value() > right_content && left_it->hasnext() ) {
+          if(left_it->hasnext() && left_it->value() > right_content) {
             if (last_match_idx == i) {
             continue;
             }
-            auto tmp = GetArrayItemIdex(left_it);
             )" + right_valid_ss.str() + right_not_exist_ss.str() + R"(
-          } 
+            out_length += 1;
+          }
           if (!left_it->hasnext()) {
             )" +
            right_valid_ss.str() + right_not_exist_ss.str() + R"(

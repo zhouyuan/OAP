@@ -94,6 +94,8 @@ class ColumnarSortMergeJoin(
         (streamIter, buildIter)
       case LeftAnti =>
         (streamIter, buildIter)
+      case ExistenceJoin(_) =>
+        (streamIter, buildIter)
       case _ =>
         (buildIter, streamIter)
     }
