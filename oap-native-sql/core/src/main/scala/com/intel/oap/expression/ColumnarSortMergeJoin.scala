@@ -249,6 +249,8 @@ object ColumnarSortMergeJoin extends Logging {
         BuildRight
       case LeftAnti =>
         BuildRight
+      case ExistenceJoin(_) =>
+        BuildRight
       case _ =>
         BuildLeft
     }
@@ -288,7 +290,7 @@ object ColumnarSortMergeJoin extends Logging {
         existsField = Field.nullable(
           s"${existsSchema.name}#${existsSchema.exprId.id}",
           CodeGeneration.getResultType(existsSchema.dataType))
-        ("conditionedProbeArraysExistence", build_input_field_list, stream_input_field_list)
+        ("conditionedJoinArraysExistence", build_input_field_list, stream_input_field_list)
       case _ =>
         throw new UnsupportedOperationException(s"Join Type ${joinType} is not supported yet.")
     }
