@@ -13,7 +13,7 @@ For those algorithms that are not accelerated by Intel MLlib, the original Spark
 
 ### Java/Scala Users Preferred
 
-Use a pre-built Intel MLlib JAR to get started. You can firstly download OAP package from [OAP-JARs-Tarball](https://github.com/Intel-bigdata/OAP/releases/download/v0.9.0-spark-3.0.0/oap-0.9.0-bin-spark-3.0.0.tar.gz) and extract this Tarball to get `oap-mllib-x.x.x-with-spark-x.x.x.jar` under `oap-0.9.0-bin-spark-3.0.0/jars`.
+Use a pre-built Intel MLlib JAR to get started. You can firstly download OAP package from [OAP-JARs-Tarball](https://github.com/Intel-bigdata/OAP/releases/download/v1.0.0-spark-3.0.0/oap-1.0.0-bin-spark-3.0.0.tar.gz) and extract this Tarball to get `oap-mllib-x.x.x-with-spark-x.x.x.jar` under `oap-1.0.0-bin-spark-3.0.0/jars`.
 
 Then you can refer to the following [Running](#Running) section to try out.
 
@@ -37,7 +37,7 @@ You can also build the package from source code, please refer to [Building](#Bui
 
 Generally, our common system requirements are the same with Intel® oneAPI Toolkit, please refer to [here](https://software.intel.com/content/www/us/en/develop/articles/intel-oneapi-base-toolkit-system-requirements.html) for details.
 
-Intel® oneAPI Toolkits (Beta) components used by the project are already included into JAR package mentioned above. There are no extra installations for cluster nodes.
+Intel® oneAPI Toolkits components used by the project are already included into JAR package mentioned above. There are no extra installations for cluster nodes.
 
 ### Spark Configuration
 
@@ -48,7 +48,7 @@ Users usually run Spark application on __YARN__ with __client__ mode. In that ca
 spark.files                       /path/to/oap-mllib-x.x.x-with-spark-x.x.x.jar
 # absolute path of the jar for driver class path
 spark.driver.extraClassPath       /path/to/oap-mllib-x.x.x-with-spark-x.x.x.jar
-# relative path of the jar for executor class path
+# relative path to spark.files, just specify jar name in current dir
 spark.executor.extraClassPath     ./oap-mllib-x.x.x-with-spark-x.x.x.jar
 ```
 
@@ -82,16 +82,16 @@ We use [Apache Maven](https://maven.apache.org/) to manage and build source code
 * JDK 8.0+
 * Apache Maven 3.6.2+
 * GNU GCC 4.8.5+
-* Intel® oneAPI Toolkits (Beta) 2021.1-beta07 Components: 
+* Intel® oneAPI Toolkits 2021.1.1 Components: 
     - Data Analytics Library (oneDAL)
     - Threading Building Blocks (oneTBB)
 * [Open Source Intel® oneAPI Collective Communications Library (oneCCL)](https://github.com/oneapi-src/oneCCL)
 
-Intel® oneAPI Toolkits (Beta) and its components can be downloaded and install from [here](https://software.intel.com/content/www/us/en/develop/tools/oneapi.html). Installation process for oneAPI using Package Managers (YUM (DNF), APT, and ZYPPER) is also available. Generally you only need to install oneAPI Base Toolkit for Linux with all or selected components mentioned above. Instead of using oneCCL included in Intel® oneAPI Toolkits (Beta), we prefer to build from open source oneCCL to resolve some bugs.
+Intel® oneAPI Toolkits and its components can be downloaded and install from [here](https://software.intel.com/content/www/us/en/develop/tools/oneapi.html). Installation process for oneAPI using Package Managers (YUM (DNF), APT, and ZYPPER) is also available. Generally you only need to install oneAPI Base Toolkit for Linux with all or selected components mentioned above. Instead of using oneCCL included in Intel® oneAPI Toolkits, we prefer to build from open source oneCCL to resolve some bugs.
 
-More details abount oneAPI can be found [here](https://software.intel.com/content/www/us/en/develop/tools/oneapi.html).
+More details about oneAPI can be found [here](https://software.intel.com/content/www/us/en/develop/tools/oneapi.html).
 
-__Note: We have verified the building process based on oneAPI 2021.1-beta07. Due to default installation path change in 2021.1-beta08+, it will not work for 2021.1-beta08+. We will fix it soon. You can also refer to [this script and comments in it](https://github.com/Intel-bigdata/OAP/blob/master/oap-mllib/dev/install-build-deps-centos.sh) to install correct oneAPI version and manually setup the environments.__
+You can also refer to [this script and comments in it](https://github.com/Intel-bigdata/OAP/blob/branch-1.0-spark-3.x/oap-mllib/dev/install-build-deps-centos.sh) to install correct oneAPI version and manually setup the environments.
 
 Scala and Java dependency descriptions are already included in Maven POM file. 
 
@@ -103,7 +103,7 @@ To clone and build from open source oneCCL, run the following commands:
 ```
 	$ git clone https://github.com/oneapi-src/oneCCL
         $ cd oneCCL
-        $ git checkout -b 2021.1-beta07-1 origin/2021.1-beta07-1
+        $ git checkout beta08
 	$ mkdir build && cd build
 	$ cmake ..
 	$ make -j install
@@ -119,7 +119,7 @@ To clone and checkout source code, run the following commands:
 ```
 __Optional__ to checkout specific release branch:
 ```
-    $ git checkout -b branch-0.9-spark-3.x origin/branch-0.9-spark-3.x
+    $ git checkout -b branch-1.0-spark-3.x origin/branch-1.0-spark-3.x
 ```
 
 We rely on environment variables to find required toolchains and libraries. Please make sure the following environment variables are set for building:
