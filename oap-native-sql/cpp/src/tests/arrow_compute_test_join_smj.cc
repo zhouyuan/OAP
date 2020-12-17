@@ -924,7 +924,7 @@ TEST(TestArrowComputeMergeJoin, JoinTestUsingExistenceJoin) {
   std::vector<std::shared_ptr<arrow::RecordBatch>> table_1;
 
   std::vector<std::string> input_data_string = {
-      "[1, 3, 4, 5, 7, 9]", "[1, 3, 4, 5, 7, 9]", "[1, 3, 4, 5, 7, 9]"};
+      "[1, 3, 3, 3, 4, 5, 7, 9]", "[1, 3, 3, 3, 4, 5, 7, 9]", "[1, 3, 3, 3, 4, 5, 7, 9]"};
   MakeInputBatch(input_data_string, schema_table_0, &input_batch);
   table_0.push_back(input_batch);
 
@@ -933,8 +933,8 @@ TEST(TestArrowComputeMergeJoin, JoinTestUsingExistenceJoin) {
   MakeInputBatch(input_data_string, schema_table_0, &input_batch);
   table_0.push_back(input_batch);
 
-  std::vector<std::string> input_data_2_string = {"[1, 2, 3, 4, 5, 6]",
-                                                  "[1, 2, 3, 4, 5, 6]"};
+  std::vector<std::string> input_data_2_string = {"[1, 2, 3, 3, 4, 5, 6]",
+                                                  "[1, 2, 3, 3, 4, 5, 6]"};
   MakeInputBatch(input_data_2_string, schema_table_1, &input_batch);
   table_1.push_back(input_batch);
 
@@ -947,8 +947,8 @@ TEST(TestArrowComputeMergeJoin, JoinTestUsingExistenceJoin) {
   std::vector<std::shared_ptr<RecordBatch>> expected_table;
   std::shared_ptr<arrow::RecordBatch> expected_result;
   std::vector<std::string> expected_result_string = {
-      "[1, 2, 3, 4, 5, 6]", "[true, false, true, true, true, false]",
-      "[1, 2, 3, 4, 5, 6]"};
+      "[1, 2, 3, 3, 4, 5, 6]", "[true, false, true, true, true, true, false]",
+      "[1, 2, 3, 3, 4, 5, 6]"};
   auto res_sch = arrow::schema({f_res, f_exist, f_res});
   MakeInputBatch(expected_result_string, res_sch, &expected_result);
   expected_table.push_back(expected_result);

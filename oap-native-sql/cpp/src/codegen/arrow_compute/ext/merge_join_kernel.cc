@@ -620,6 +620,114 @@ class ConditionedJoinArraysKernel::Impl {
         }
   )";
   }
+  std::string GetFullOuterJoin(bool cond_check,
+                           const std::vector<int>& left_shuffle_index_list,
+                           const std::vector<int>& right_shuffle_index_list,
+                           const std::vector<int>& right_key_index_list) {
+    std::stringstream left_null_ss;
+    std::stringstream right_null_ss;
+    std::stringstream left_valid_ss;
+    std::stringstream right_valid_ss;
+    for (auto i : left_shuffle_index_list) {
+      left_valid_ss << "if (cached_0_" << i << "_[tmp.array_id]->null_count()) {" << std::endl;
+      left_valid_ss << "if (cached_0_" << i << "_[tmp.array_id]->IsNull(tmp.id)) {"
+                    << std::endl;
+      left_valid_ss << "  RETURN_NOT_OK(builder_0_" << i << "_->AppendNull());"
+                    << std::endl;
+      left_valid_ss << "} else {" << std::endl;
+      left_valid_ss << "  RETURN_NOT_OK(builder_0_" << i << "_->Append(cached_0_" << i
+                    << "_[tmp.array_id]->GetView(tmp.id)));" << std::endl;
+      left_valid_ss << "}" << std::endl;
+      left_valid_ss << "} else {" << std::endl;
+      left_valid_ss << "  RETURN_NOT_OK(builder_0_" << i << "_->Append(cached_0_" << i
+                    << "_[tmp.array_id]->GetView(tmp.id)));" << std::endl;
+      left_valid_ss << "}" << std::endl;
+      left_null_ss << "RETURN_NOT_OK(builder_0_" << i << "_->AppendNull());" << std::endl;
+    }
+    for (auto i : right_shuffle_index_list) {
+      right_valid_ss << "if (cached_1_" << i << "_->null_count()) {" << std::endl;
+      right_valid_ss << "if (cached_1_" << i << "_->IsNull(i)) {" << std::endl;
+      right_valid_ss << "  RETURN_NOT_OK(builder_1_" << i << "_->AppendNull());"
+                     << std::endl;
+      right_valid_ss << "} else {" << std::endl;
+      right_valid_ss << "  RETURN_NOT_OK(builder_1_" << i << "_->Append(cached_1_" << i
+                     << "_->GetView(i)));" << std::endl;
+      right_valid_ss << "}" << std::endl;
+      right_valid_ss << "} else {" << std::endl;
+      right_valid_ss << "  RETURN_NOT_OK(builder_1_" << i << "_->Append(cached_1_" << i
+         << "_->GetView(i)));" << std::endl;
+      right_valid_ss << "}" << std::endl;
+      right_null_ss << "RETURN_NOT_OK(builder_1_" << i << "_->AppendNull());" << std::endl;
+
+    }
+    std::string shuffle_str;
+    if (cond_check) {
+      shuffle_str = R"(
+              if (ConditionCheck(tmp, i)) {
+                )" + left_valid_ss.str() +
+                    right_valid_ss.str() + R"(
+                out_length += 1;
+              }
+      )";
+    } else {
+      shuffle_str = R"(
+              )" + left_valid_ss.str() +
+                    right_valid_ss.str() + R"(
+              out_length += 1;
+      )";
+    }
+
+    std::string right_value;
+    if (right_key_index_list.size() > 1) {
+      right_value += "item_content{";
+      for (auto i = 0; i < right_key_index_list.size(); i++) {
+        right_value += "typed_array_" + std::to_string(i) + "->GetView(i)";
+        if (i != right_key_index_list.size() -1) {
+          right_value += ",";
+        }
+      }
+      right_value += "}";
+    } else {
+      right_value = "typed_array_0->GetView(i)";
+    }
+    return R"(
+      //full outer join
+      auto right_content =)" +
+           right_value + R"(;
+      while (left_it->hasnext() && left_it->value() < right_content ) {
+        auto tmp = GetArrayItemIdex(left_it);
+          )" +  // TODO: cond check
+           left_valid_ss.str() +
+           right_null_ss.str() + R"(
+        left_it->next();
+      }
+  int64_t cur_idx, seg_len, pl; left_it->getpos(&cur_idx, &seg_len, &pl);
+  while(left_it->hasnext() && left_it->value() == right_content) {
+    auto tmp = GetArrayItemIdex(left_it);
+          )" +  // TODO: cond check
+           left_valid_ss.str() +
+           right_valid_ss.str() + R"(
+          left_it->next();
+          last_match_idx = i;
+          out_length += 1;
+        }
+  left_it->setpos(cur_idx, seg_len, pl);
+        if(left_it->value() > right_content && left_it->hasnext() ) {
+          if (last_match_idx == i) {
+            continue;
+          }
+          auto tmp = GetArrayItemIdex(left_it);
+            )" +
+           left_null_ss.str() + right_valid_ss.str() + R"(
+             out_length += 1;
+          }
+          if (!left_it->hasnext()) {
+            )" +
+           left_null_ss.str() + right_valid_ss.str() + R"(
+            out_length += 1;
+          }
+  )";
+  }
   std::string GetAntiJoin(bool cond_check,
                           const std::vector<int>& left_shuffle_index_list,
                           const std::vector<int>& right_shuffle_index_list) {
@@ -870,6 +978,10 @@ class ConditionedJoinArraysKernel::Impl {
       } break;
       case 4: { /*Existence Join*/
         return GetExistenceJoin(cond_check, left_shuffle_index_list,
+                                right_shuffle_index_list, right_key_index_list);
+      } break;
+      case 5: { /*Full outer Join*/
+        return GetFullOuterJoin(cond_check, left_shuffle_index_list,
                                 right_shuffle_index_list, right_key_index_list);
       } break;
       default:
