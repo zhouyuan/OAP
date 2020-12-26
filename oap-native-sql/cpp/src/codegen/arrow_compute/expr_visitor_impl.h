@@ -30,6 +30,7 @@
 #include "codegen/arrow_compute/ext/kernels_ext.h"
 #include "codegen/common/hash_relation.h"
 #include "codegen/common/result_iterator.h"
+#include "codegen/common/sort_relation.h"
 #include "utils/macros.h"
 
 namespace sparkcolumnarplugin {
@@ -625,9 +626,15 @@ class SortArraysToIndicesVisitorImpl : public ExprVisitorImpl {
     }
     // fifth child specifies whether to check NaN when sorting
     auto function_node = std::dynamic_pointer_cast<gandiva::FunctionNode>(children[4]);
-    auto NaN_check_node = 
+    auto NaN_check_node =
         std::dynamic_pointer_cast<gandiva::LiteralNode>(function_node->children()[0]);
     NaN_check_ = arrow::util::get<bool>(NaN_check_node->holder());
+
+    if (children.size() == 6) {
+      auto type_node = std::dynamic_pointer_cast<gandiva::LiteralNode>(
+          std::dynamic_pointer_cast<gandiva::FunctionNode>(children[5])->children()[0]);
+      result_type_ = arrow::util::get<int>(type_node->holder());
+    }
     result_schema_ = arrow::schema(ret_fields);
   }
 
@@ -647,7 +654,7 @@ class SortArraysToIndicesVisitorImpl : public ExprVisitorImpl {
     }
     RETURN_NOT_OK(extra::SortArraysToIndicesKernel::Make(
         &p_->ctx_, result_schema_, sort_key_node_, key_field_list_, sort_directions_,
-        nulls_order_, NaN_check_, &kernel_));
+        nulls_order_, NaN_check_, result_type_, &kernel_));
     p_->signature_ = kernel_->GetSignature();
     initialized_ = true;
     finish_return_type_ = ArrowComputeResultType::BatchIterator;
@@ -674,10 +681,12 @@ class SortArraysToIndicesVisitorImpl : public ExprVisitorImpl {
                                    std::shared_ptr<ResultIteratorBase>* out) override {
     switch (finish_return_type_) {
       case ArrowComputeResultType::BatchIterator: {
-        std::shared_ptr<ResultIterator<arrow::RecordBatch>> iter_out;
-        TIME_MICRO_OR_RAISE(p_->elapse_time_,
-                            kernel_->MakeResultIterator(schema, &iter_out));
-        *out = std::dynamic_pointer_cast<ResultIteratorBase>(iter_out);
+        if (result_type_ == 0) {
+          std::shared_ptr<ResultIterator<arrow::RecordBatch>> iter_out;
+          TIME_MICRO_OR_RAISE(p_->elapse_time_,
+                              kernel_->MakeResultIterator(schema, &iter_out));
+          *out = std::dynamic_pointer_cast<ResultIteratorBase>(iter_out);
+        }
         p_->return_type_ = ArrowComputeResultType::BatchIterator;
       } break;
       default:
@@ -697,6 +706,97 @@ class SortArraysToIndicesVisitorImpl : public ExprVisitorImpl {
   std::vector<bool> sort_directions_;
   std::vector<bool> nulls_order_;
   bool NaN_check_;
+  int result_type_ = 0;
+  std::shared_ptr<arrow::Schema> result_schema_;
+};
+
+////////////////////////// CachedRelationVisitorImpl ///////////////////////
+class CachedRelationVisitorImpl : public ExprVisitorImpl {
+ public:
+  CachedRelationVisitorImpl(std::vector<std::shared_ptr<arrow::Field>> field_list,
+                            std::shared_ptr<gandiva::FunctionNode> root_node,
+                            std::vector<std::shared_ptr<arrow::Field>> ret_fields,
+                            ExprVisitor* p)
+      : root_node_(root_node),
+        field_list_(field_list),
+        ret_fields_(ret_fields),
+        ExprVisitorImpl(p) {
+    auto children = root_node->children();
+    // second child is key_field
+    auto key_field_node = std::dynamic_pointer_cast<gandiva::FunctionNode>(children[0]);
+    for (auto field : key_field_node->children()) {
+      auto field_node = std::dynamic_pointer_cast<gandiva::FieldNode>(field);
+      key_field_list_.push_back(field_node->field());
+    }
+    /*auto type_node = std::dynamic_pointer_cast<gandiva::LiteralNode>(
+        std::dynamic_pointer_cast<gandiva::FunctionNode>(children[1])->children()[0]);
+    result_type_ = arrow::util::get<int>(type_node->holder());*/
+    result_schema_ = arrow::schema(ret_fields);
+  }
+
+  static arrow::Status Make(std::vector<std::shared_ptr<arrow::Field>> field_list,
+                            std::shared_ptr<gandiva::FunctionNode> root_node,
+                            std::vector<std::shared_ptr<arrow::Field>> ret_fields,
+                            ExprVisitor* p, std::shared_ptr<ExprVisitorImpl>* out) {
+    auto impl =
+        std::make_shared<CachedRelationVisitorImpl>(field_list, root_node, ret_fields, p);
+    *out = impl;
+    return arrow::Status::OK();
+  }
+
+  arrow::Status Init() override {
+    if (initialized_) {
+      return arrow::Status::OK();
+    }
+    RETURN_NOT_OK(extra::CachedRelationKernel::Make(
+        &p_->ctx_, result_schema_, key_field_list_, result_type_, &kernel_));
+    initialized_ = true;
+    finish_return_type_ = ArrowComputeResultType::BatchIterator;
+    return arrow::Status::OK();
+  }
+
+  arrow::Status Eval() override {
+    switch (p_->dependency_result_type_) {
+      case ArrowComputeResultType::None: {
+        std::vector<std::shared_ptr<arrow::Array>> col_list;
+        for (auto col : p_->in_record_batch_->columns()) {
+          col_list.push_back(col);
+        }
+        RETURN_NOT_OK(kernel_->Evaluate(col_list));
+      } break;
+      default:
+        return arrow::Status::NotImplemented(
+            "CachedRelationVisitorImpl: Does not support this type of input.");
+    }
+    return arrow::Status::OK();
+  }
+
+  arrow::Status MakeResultIterator(std::shared_ptr<arrow::Schema> schema,
+                                   std::shared_ptr<ResultIteratorBase>* out) override {
+    switch (finish_return_type_) {
+      case ArrowComputeResultType::BatchIterator: {
+        if (result_type_ == 0) {
+          std::shared_ptr<ResultIterator<SortRelation>> iter_out;
+          TIME_MICRO_OR_RAISE(p_->elapse_time_,
+                              kernel_->MakeResultIterator(schema, &iter_out));
+          *out = std::dynamic_pointer_cast<ResultIteratorBase>(iter_out);
+        }
+        p_->return_type_ = ArrowComputeResultType::BatchIterator;
+      } break;
+      default:
+        return arrow::Status::Invalid(
+            "CachedRelationVisitorImpl MakeResultIterator does not support "
+            "dependency type other than Batch.");
+    }
+    return arrow::Status::OK();
+  }
+
+ private:
+  std::shared_ptr<gandiva::FunctionNode> root_node_;
+  gandiva::FieldVector field_list_;
+  gandiva::FieldVector ret_fields_;
+  std::vector<std::shared_ptr<arrow::Field>> key_field_list_;
+  int result_type_ = 0;
   std::shared_ptr<arrow::Schema> result_schema_;
 };
 

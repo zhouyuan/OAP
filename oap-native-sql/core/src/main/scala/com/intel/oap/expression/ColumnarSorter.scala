@@ -67,6 +67,7 @@ class ColumnarSorter(
   var total_elapse: Long = 0
   val inputBatchHolder = new ListBuffer[ColumnarBatch]()
   var nextVector: FieldVector = null
+  var closed: Boolean = false
   val resultSchema = StructType(
     outputAttributes
       .map(expr => {
@@ -83,6 +84,7 @@ class ColumnarSorter(
   var sort_iterator: BatchIterator = _
 
   def close(): Unit = {
+    if (closed) return
     logInfo(s"Sort Closed, ${processedNumRows} rows, output ${outputRows} rows")
     if (nextVector != null) {
       nextVector.close()
@@ -98,6 +100,7 @@ class ColumnarSorter(
       sort_iterator.close()
       sort_iterator = null
     }
+    closed = true
   }
 
   def updateSorterResult(input: ColumnarBatch): Unit = {
@@ -129,9 +132,10 @@ class ColumnarSorter(
   def createColumnarIterator(cbIterator: Iterator[ColumnarBatch]): Iterator[ColumnarBatch] = {
     new Iterator[ColumnarBatch] {
       var cb: ColumnarBatch = null
-      var resultCb :ColumnarBatch = null
+      var resultCb: ColumnarBatch = null
       var nextBatch: ArrowRecordBatch = null
       var batchIterator: BatchIterator = null
+      var has_next: Boolean = true
 
       override def hasNext: Boolean = {
         if (sort_iterator == null) {
@@ -149,7 +153,14 @@ class ColumnarSorter(
           sort_elapse += System.nanoTime() - beforeSort
           total_elapse += System.nanoTime() - beforeSort
         }
-        return sort_iterator.hasNext()
+        if (has_next)
+          has_next = sort_iterator.hasNext()
+
+        if (has_next == false) {
+          close()
+        }
+
+        return has_next
 
       }
 
@@ -168,31 +179,58 @@ class ColumnarSorter(
 }
 
 object ColumnarSorter extends Logging {
-  var sort_expr: ExpressionTree = _
-  var outputAttributes: Seq[Attribute] = _
-  var arrowSchema: Schema = _
-  var sorter: ExpressionEvaluator = _
 
-  def init(
+  def prepareRelationFunction(
       sortOrder: Seq[SortOrder],
-      outputAsColumnar: Boolean,
+      outputAttributes: Seq[Attribute]): TreeNode = {
+    val outputFieldList: List[Field] = outputAttributes.toList.map(expr => {
+      val attr = ConverterUtils.getAttrFromExpr(expr)
+      Field
+        .nullable(s"${attr.name}#${attr.exprId.id}", CodeGeneration.getResultType(attr.dataType))
+    })
+
+    val keyFieldList: List[Field] = sortOrder.toList.map(sort => {
+      val attr = ConverterUtils.getAttrFromExpr(sort.child)
+      if (attr.dataType.isInstanceOf[DecimalType])
+        throw new UnsupportedOperationException(
+          s"Decimal type is not supported in ColumnarSorter.")
+      val field = Field
+        .nullable(s"${attr.name}#${attr.exprId.id}", CodeGeneration.getResultType(attr.dataType))
+      if (outputFieldList.indexOf(field) == -1) {
+        throw new UnsupportedOperationException(
+          s"ColumnarSorter not found ${attr.name}#${attr.exprId.id} in ${outputAttributes}")
+      }
+      field
+    });
+
+    val key_args_node = TreeBuilder.makeFunction(
+      "key_field",
+      keyFieldList
+        .map(field => {
+          TreeBuilder.makeField(field)
+        })
+        .asJava,
+      new ArrowType.Int(32, true) /*dummy ret type, won't be used*/ )
+
+    val cachedRelationFuncName = "CachedRelation"
+    val cached_relation_func = TreeBuilder.makeFunction(
+      cachedRelationFuncName,
+      Lists.newArrayList(key_args_node),
+      new ArrowType.Int(32, true) /*dummy ret type, won't be used*/ )
+
+    TreeBuilder.makeFunction(
+      "standalone",
+      Lists.newArrayList(cached_relation_func),
+      new ArrowType.Int(32, true))
+  }
+
+  def prepareKernelFunction(
+      sortOrder: Seq[SortOrder],
       outputAttributes: Seq[Attribute],
-      _sortTime: SQLMetric,
-      _outputBatches: SQLMetric,
-      _outputRows: SQLMetric,
-      _shuffleTime: SQLMetric,
-      _elapse: SQLMetric,
-      _sparkConf: SparkConf): Unit = {
-
-    val sortTime = _sortTime
-    val outputBatches = _outputBatches
-    val outputRows = _outputRows
-    val shuffleTime = _shuffleTime
-    val elapse = _elapse
-    val sparkConf = _sparkConf
-
+      sparkConf: SparkConf,
+      result_type: Int = 0): TreeNode = {
     logInfo(s"ColumnarSorter sortOrder is ${sortOrder}, outputAttributes is ${outputAttributes}")
-    val NaNCheck = ColumnarPluginConfig.getConf(sparkConf).enableColumnarSortNaNCheck
+    val NaNCheck = ColumnarPluginConfig.getConf(sparkConf).enableColumnarNaNCheck
     /////////////// Prepare ColumnarSorter //////////////
     val outputFieldList: List[Field] = outputAttributes.toList.map(expr => {
       val attr = ConverterUtils.getAttrFromExpr(expr)
@@ -203,7 +241,8 @@ object ColumnarSorter extends Logging {
     val keyFieldList: List[Field] = sortOrder.toList.map(sort => {
       val attr = ConverterUtils.getAttrFromExpr(sort.child)
       if (attr.dataType.isInstanceOf[DecimalType])
-        throw new UnsupportedOperationException(s"Decimal type is not supported in ColumnarSorter.")
+        throw new UnsupportedOperationException(
+          s"Decimal type is not supported in ColumnarSorter.")
       val field = Field
         .nullable(s"${attr.name}#${attr.exprId.id}", CodeGeneration.getResultType(attr.dataType))
       if (outputFieldList.indexOf(field) == -1) {
@@ -217,7 +256,7 @@ object ColumnarSorter extends Logging {
     Get the sort directions and nulls order from SortOrder.
     Directions: asc: true, desc: false
     NullsOrder: NullsFirst: true, NullsLast: false
-    */
+     */
     var directions = new ListBuffer[Boolean]()
     var nullsOrder = new ListBuffer[Boolean]()
     for (key <- sortOrder) {
@@ -248,24 +287,31 @@ object ColumnarSorter extends Logging {
       sortKeyFuncList.asJava,
       new ArrowType.Int(32, true) /*dummy ret type, won't be used*/ )
 
-    val key_args_node = TreeBuilder.makeFunction("key_field",
-      keyFieldList.map(field => {
-        TreeBuilder.makeField(field)
-      }).asJava,
+    val key_args_node = TreeBuilder.makeFunction(
+      "key_field",
+      keyFieldList
+        .map(field => {
+          TreeBuilder.makeField(field)
+        })
+        .asJava,
       new ArrowType.Int(32, true) /*dummy ret type, won't be used*/ )
 
     val dir_node = TreeBuilder.makeFunction(
       "sort_directions",
-      dirList.map(dir => {
+      dirList
+        .map(dir => {
           TreeBuilder.makeLiteral(dir.asInstanceOf[java.lang.Boolean])
-        }).asJava,
+        })
+        .asJava,
       new ArrowType.Int(32, true) /*dummy ret type, won't be used*/ )
 
     val nulls_order_node = TreeBuilder.makeFunction(
       "sort_nulls_order",
-      nullList.map(nullsOrder => {
-        TreeBuilder.makeLiteral(nullsOrder.asInstanceOf[java.lang.Boolean])
-      }).asJava,
+      nullList
+        .map(nullsOrder => {
+          TreeBuilder.makeLiteral(nullsOrder.asInstanceOf[java.lang.Boolean])
+        })
+        .asJava,
       new ArrowType.Int(32, true) /*dummy ret type, won't be used*/ )
 
     val NaN_check_node = TreeBuilder.makeFunction(
@@ -273,27 +319,48 @@ object ColumnarSorter extends Logging {
       Lists.newArrayList(TreeBuilder.makeLiteral(NaNCheck.asInstanceOf[java.lang.Boolean])),
       new ArrowType.Int(32, true) /*dummy ret type, won't be used*/ )
 
+    val result_type_node = TreeBuilder.makeFunction(
+      "result_type",
+      Lists.newArrayList(TreeBuilder.makeLiteral(result_type.asInstanceOf[Integer])),
+      new ArrowType.Int(32, true) /*dummy ret type, won't be used*/ )
+
     val sortFuncName = "sortArraysToIndices"
     val sort_func_node = TreeBuilder.makeFunction(
       sortFuncName,
-      Lists.newArrayList(sort_keys_node, key_args_node, dir_node,
-                         nulls_order_node, NaN_check_node),
+      Lists
+        .newArrayList(
+          sort_keys_node,
+          key_args_node,
+          dir_node,
+          nulls_order_node,
+          NaN_check_node,
+          result_type_node),
       new ArrowType.Int(32, true) /*dummy ret type, won't be used*/ )
 
-    arrowSchema = new Schema(outputFieldList.asJava)
-    ///////////////// prepare sort expression ////////////////
-    val retType = Field.nullable("res", new ArrowType.Int(32, true))
-    val sort_node = TreeBuilder.makeFunction(
+    TreeBuilder.makeFunction(
       "standalone",
       Lists.newArrayList(sort_func_node),
       new ArrowType.Int(32, true))
-    sort_expr = TreeBuilder.makeExpression(sort_node, retType)
-    /////////////////////////////////////////////////////
+  }
+
+  def init(
+      sortOrder: Seq[SortOrder],
+      outputAttributes: Seq[Attribute],
+      _sparkConf: SparkConf): (ExpressionTree, Schema) = {
+    val outputFieldList: List[Field] = outputAttributes.toList.map(expr => {
+      val attr = ConverterUtils.getAttrFromExpr(expr)
+      Field
+        .nullable(s"${attr.name}#${attr.exprId.id}", CodeGeneration.getResultType(attr.dataType))
+    })
+    val retType = Field.nullable("res", new ArrowType.Int(32, true))
+    val sort_node =
+      prepareKernelFunction(sortOrder, outputAttributes, _sparkConf)
+
+    (TreeBuilder.makeExpression(sort_node, retType), new Schema(outputFieldList.asJava))
   }
 
   def prebuild(
       sortOrder: Seq[SortOrder],
-      outputAsColumnar: Boolean,
       outputAttributes: Seq[Attribute],
       sortTime: SQLMetric,
       outputBatches: SQLMetric,
@@ -301,17 +368,8 @@ object ColumnarSorter extends Logging {
       shuffleTime: SQLMetric,
       elapse: SQLMetric,
       sparkConf: SparkConf): String = synchronized {
-    init(
-      sortOrder,
-      outputAsColumnar,
-      outputAttributes,
-      sortTime,
-      outputBatches,
-      outputRows,
-      shuffleTime,
-      elapse,
-      sparkConf)
-    sorter = new ExpressionEvaluator()
+    val (sort_expr, arrowSchema) = init(sortOrder, outputAttributes, sparkConf)
+    val sorter = new ExpressionEvaluator()
     val signature = sorter
       .build(arrowSchema, Lists.newArrayList(sort_expr), arrowSchema, true /*return at finish*/ )
     sorter.close
@@ -320,7 +378,6 @@ object ColumnarSorter extends Logging {
 
   def create(
       sortOrder: Seq[SortOrder],
-      outputAsColumnar: Boolean,
       outputAttributes: Seq[Attribute],
       listJars: Seq[String],
       sortTime: SQLMetric,
@@ -329,17 +386,8 @@ object ColumnarSorter extends Logging {
       shuffleTime: SQLMetric,
       elapse: SQLMetric,
       sparkConf: SparkConf): ColumnarSorter = synchronized {
-    init(
-      sortOrder,
-      outputAsColumnar,
-      outputAttributes,
-      sortTime,
-      outputBatches,
-      outputRows,
-      shuffleTime,
-      elapse,
-      sparkConf)
-    sorter = new ExpressionEvaluator(listJars.toList.asJava)
+    val (sort_expr, arrowSchema) = init(sortOrder, outputAttributes, sparkConf)
+    val sorter = new ExpressionEvaluator(listJars.toList.asJava)
     sorter
       .build(arrowSchema, Lists.newArrayList(sort_expr), arrowSchema, true /*return at finish*/ )
     new ColumnarSorter(

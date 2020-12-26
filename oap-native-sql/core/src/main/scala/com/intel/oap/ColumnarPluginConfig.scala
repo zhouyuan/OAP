@@ -27,8 +27,8 @@ case class ColumnarNumaBindingInfo(
 class ColumnarPluginConfig(conf: SparkConf) {
   val enableColumnarSort: Boolean =
     conf.getBoolean("spark.sql.columnar.sort", defaultValue = false)
-  val enableColumnarSortNaNCheck: Boolean =
-    conf.getBoolean("spark.sql.columnar.sort.NaNCheck", defaultValue = false)
+  val enableColumnarNaNCheck: Boolean =
+    conf.getBoolean("spark.sql.columnar.nanCheck", defaultValue = false)
   val enableCodegenHashAggregate: Boolean =
     conf.getBoolean("spark.sql.columnar.codegen.hashAggregate", defaultValue = false)
   val enableColumnarBroadcastJoin: Boolean =
@@ -56,6 +56,11 @@ class ColumnarPluginConfig(conf: SparkConf) {
     conf.getInt("spark.sql.columnar.sort.broadcast.cache.timeout", defaultValue = -1)
   val hashCompare: Boolean =
     conf.getBoolean("spark.oap.sql.columnar.hashCompare", defaultValue = false)
+  // Whether to spill the partition buffers when buffers are full.
+  // If false, the partition buffers will be cached in memory first,
+  // and the cached buffers will be spilled when reach maximum memory.
+  val columnarShufflePreferSpill: Boolean =
+    conf.getBoolean("spark.oap.sql.columnar.shuffle.preferSpill", defaultValue = true)
   val numaBindingInfo: ColumnarNumaBindingInfo = {
     val enableNumaBinding: Boolean =
       conf.getBoolean("spark.oap.sql.columnar.numaBinding", defaultValue = false)
@@ -68,12 +73,6 @@ class ColumnarPluginConfig(conf: SparkConf) {
       } else {
         val numCores = conf.getInt("spark.executor.cores", defaultValue = 1)
         val coreRangeList: Array[String] = tmp.split('|').map(_.trim)
-            /*val res = range.trim.split("-")
-            res match {
-              case Array(start, end, _*) => (start.toInt, end.toInt)
-              case _ => (-1, -1)
-            }
-          }).filter(_ != (-1, -1))*/
         ColumnarNumaBindingInfo(true, coreRangeList, numCores)
       }
 

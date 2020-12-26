@@ -30,10 +30,11 @@ import org.apache.spark.sql.execution.metric.{SQLMetric, SQLMetrics}
 import org.apache.spark.sql.vectorized.{ColumnarBatch, ColumnVector}
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.util.ExecutorManager
-import org.apache.spark.TaskContext
+import org.apache.spark.{SparkConf, TaskContext}
 import org.apache.arrow.gandiva.expression._
 import org.apache.arrow.vector.types.pojo.ArrowType
 import com.google.common.collect.Lists
+import com.intel.oap.ColumnarPluginConfig
 import org.apache.spark.sql.execution.datasources.v2.arrow.SparkMemoryUtils;
 
 case class ColumnarConditionProjectExec(
@@ -47,6 +48,16 @@ case class ColumnarConditionProjectExec(
     with Logging {
 
   val numaBindingInfo = ColumnarPluginConfig.getConf(sparkContext.getConf).numaBindingInfo
+
+  val sparkConf: SparkConf = sparkContext.getConf
+
+  override def supportsColumnar = true
+
+  override lazy val metrics = Map(
+    "numOutputRows" -> SQLMetrics.createMetric(sparkContext, "number of output rows"),
+    "numOutputBatches" -> SQLMetrics.createMetric(sparkContext, "output_batches"),
+    "numInputBatches" -> SQLMetrics.createMetric(sparkContext, "input_batches"),
+    "processTime" -> SQLMetrics.createTimingMetric(sparkContext, "totaltime_condproject"))
 
   def isNullIntolerant(expr: Expression): Boolean = expr match {
     case e: NullIntolerant => e.children.forall(isNullIntolerant)
@@ -89,12 +100,28 @@ case class ColumnarConditionProjectExec(
       Seq(child.executeColumnar())
   }
 
-  override def getHashBuildPlans: Seq[SparkPlan] = child match {
+  override def getBuildPlans: Seq[SparkPlan] = child match {
     case c: ColumnarCodegenSupport if c.supportColumnarCodegen == true =>
-      c.getHashBuildPlans
+      c.getBuildPlans
     case _ =>
       Seq()
   }
+
+  override def getStreamedLeafPlan: SparkPlan = child match {
+    case c: ColumnarCodegenSupport if c.supportColumnarCodegen == true =>
+      c.getStreamedLeafPlan
+    case _ =>
+      this
+  }
+
+  override def updateMetrics(out_num_rows: Long, process_time: Long): Unit = {
+    val numOutputRows = longMetric("numOutputRows")
+    val procTime = longMetric("processTime")
+    procTime.set(process_time / 1000000)
+    numOutputRows += out_num_rows
+  }
+
+  override def getChild: SparkPlan = child
 
   override def supportColumnarCodegen: Boolean = true
 
@@ -133,11 +160,10 @@ case class ColumnarConditionProjectExec(
       }
     } else if (projectNode != null) {
       if (childTreeNode != null) {
-        TreeBuilder
-          .makeFunction(
-            s"child",
-            Lists.newArrayList(projectNode, childTreeNode),
-            new ArrowType.Int(32, true))
+        TreeBuilder.makeFunction(
+          s"child",
+          Lists.newArrayList(projectNode, childTreeNode),
+          new ArrowType.Int(32, true))
       } else {
         TreeBuilder.makeFunction(
           s"child",
@@ -171,14 +197,6 @@ case class ColumnarConditionProjectExec(
     throw new UnsupportedOperationException(s"This operator doesn't support doExecute().")
   }
 
-  override def supportsColumnar = true
-
-  override lazy val metrics = Map(
-    "numOutputRows" -> SQLMetrics.createMetric(sparkContext, "number of output rows"),
-    "numOutputBatches" -> SQLMetrics.createMetric(sparkContext, "output_batches"),
-    "numInputBatches" -> SQLMetrics.createMetric(sparkContext, "input_batches"),
-    "processTime" -> SQLMetrics.createTimingMetric(sparkContext, "totaltime_condproject"))
-
   ColumnarConditionProjector.prebuild(condition, projectList, child.output)
 
   override def doExecuteColumnar(): RDD[ColumnarBatch] = {
@@ -191,6 +209,7 @@ case class ColumnarConditionProjectExec(
     numInputBatches.set(0)
 
     child.executeColumnar().mapPartitions { iter =>
+      ColumnarPluginConfig.getConf(sparkConf)
       ExecutorManager.tryTaskSet(numaBindingInfo)
       val condProj = ColumnarConditionProjector.create(
         condition,
